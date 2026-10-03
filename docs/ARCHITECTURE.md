@@ -49,7 +49,7 @@
 每个微服务统一分层：
 
 ```
-com.video.platform.{service}/
+org.tiglor.{module}.{service}/
 ├── config/        # MybatisPlusConfig（分页 + MapperScan + 自动填充）
 ├── controller/    # HTTP 接口（返回 ApiResult）
 ├── service/       # 业务接口（继承 IService）
@@ -96,11 +96,11 @@ com.video.platform.{service}/
 ## 6. 网关鉴权与 Nacos 配置
 
 ### 6.1 网关 JWT 鉴权过滤器（`GatewayAuthFilter`）
-- 位置：`gateway/.../filter/GatewayAuthFilter.java`，实现 `GlobalFilter` + `Ordered`（order=-1，早于路由）。
+- 位置：`../vidora-gateway/.../filter/GatewayAuthFilter.java`，实现 `GlobalFilter` + `Ordered`（order=-1，早于路由）。
 - 白名单：路径以 `/api/auth/**` 开头直接放行（登录/注册无需 Token）。
 - 其余请求必须携带 `Authorization: Bearer <token>`，校验失败返回 **401**（前端按 401 跳登录）。
 - 校验通过后将 `userId` 以 `X-User-Id` 请求头透传给下游微服务，业务服务可直接取用。
-- 复用 `common/core` 的 `JwtUtil`（网关以「排除 spring-boot-starter-web」方式引入公共核心，避免与 WebFlux 冲突）。
+- 复用 `../vidora-common/common-core` 的 `JwtUtil`（网关以「排除 spring-boot-starter-web」方式引入公共核心，避免与 WebFlux 冲突）。
 
 ### 6.2 Nacos 配置中心接入
 - 每个服务（含网关）在 `application.yml` 增加：
@@ -189,7 +189,7 @@ com.video.platform.{service}/
 - 返回 `LoginVO`：`token + userId + nickname + roles + permissions`。
 - 注册时自动赋予默认角色 `ROLE_USER`（role_id=2）。
 
-认证代码位于 `auth`，系统管理代码位于 `modules/system`。认证服务当前对
+认证代码位于 `auth`，系统管理代码位于 `../vidora-modules/vidora-system`。认证服务当前对
 `sys_user`、`sys_role`、`sys_menu` 采用认证所需的身份投影，后续可在不改变 API 契约的情况下演进为独立身份库。
 
 ### 7.3 网关透传（gateway-service）
@@ -212,7 +212,7 @@ com.video.platform.{service}/
 - `UserContext`（ThreadLocal）供业务代码直接取当前 userId / 角色 / 权限。
 - 示例：`POST /api/videos/upload` 标注 `@PreAuthorize("hasAuthority('video:upload')")`。
 
-> 注：`common/core` 只引入 `spring-security-core`（纯 API，无自动配置），
+> 注：`../vidora-common/common-core` 只引入 `spring-security-core`（纯 API，无自动配置），
 > 因此 WebFlux 网关不受影响；自动配置的 starter 只加在业务服务。
 
 ### 7.5 菜单控制接口

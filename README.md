@@ -18,7 +18,7 @@
 | ORM | MyBatis-Plus | **3.5.14** + `mybatis-plus-jsqlparser` + `mybatis-spring 4.0.0` | Boot 4 需 mybatis-spring 4.x |
 | 接口文档 | SpringDoc OpenAPI | **3.1.0** | Boot 4 对应 springdoc 3.x |
 | 对象存储 | MinIO / 本地磁盘 | SDK **8.5.17** | 视频文件上传/存储，可切换 |
-| 多媒体处理 | FFmpeg（ffmpeg + ffprobe） | 本机 CLI 依赖 | 仅 `modules/video` 转码/探测时需要，见下文「FFmpeg 前置依赖」 |
+| 多媒体处理 | FFmpeg（ffmpeg + ffprobe） | 本机 CLI 依赖 | 仅 `vidora-modules/vidora-video` 转码/探测时需要，见下文「FFmpeg 前置依赖」 |
 | 数据库 | MySQL | 8.0 | 每服务独立 schema |
 | 缓存 | Redis | 7 | |
 | 消息队列 | RocketMQ | 引擎 **5.3.2** / 集成库 2.3.4（暂未启用） | starter 版本号 ≠ 引擎版本号，详见 docs 6.4 |
@@ -29,24 +29,25 @@
 
 ```
 vidora-cloud/（云端服务）
-├── pom.xml                   # 根工程与统一依赖管理
-├── auth/                      # 平台级登录/注册/JWT 身份认证 8101
-├── common/core/               # 统一响应/异常/BaseEntity/JWT/安全头透传
-├── gateway/                   # 网关 8080（路由 + JWT 鉴权 + 权限头透传）
-└── modules/                   # 业务模块
-    ├── video/                    # 视频/存储/转码 8102
-    ├── content/                  # 内容分类 8103
-    ├── interact/                 # 评论互动 8104
-    ├── message/                  # 消息 8105
-    ├── search/                   # 搜索 8106
-    ├── recommend/                # 推荐 8107
-    └── system/                   # 用户/角色/菜单/RBAC 管理 8108
-├── SQL/                      # 建库建表脚本（7 个，按服务拆分）
-├── deploy/                   # 部署编排：docker-compose.yml + nginx 反代 + .env + 部署文档
-└── docs/                     # 文档（ARCHITECTURE.md）
+├── pom.xml                          # 根工程与统一依赖管理
+├── vidora-auth/                     # 平台级登录/注册/JWT 身份认证 8101
+├── vidora-common/
+│   └── common-core/                 # 统一响应/异常/BaseEntity/JWT/安全头透传
+├── vidora-gateway/                  # 网关 8080（路由 + JWT 鉴权 + 权限头透传）
+└── vidora-modules/                  # 业务模块
+    ├── vidora-video/                    # 视频/存储/转码 8102
+    ├── vidora-content/                  # 内容分类 8103
+    ├── vidora-interact/                 # 评论互动 8104
+    ├── vidora-message/                  # 消息 8105
+    ├── vidora-search/                   # 搜索 8106
+    ├── vidora-recommend/                # 推荐 8107
+    └── vidora-system/                   # 用户/角色/菜单/RBAC 管理 8108
+├── SQL/                           # 建库建表脚本（7 个，按服务拆分）
+├── deploy/                        # 部署编排：docker-compose.yml + nginx 反代 + .env + 部署文档
+└── docs/                          # 文档（ARCHITECTURE.md）
 ```
 
-> 每个可运行模块目录（gateway、auth、system、video、content、interact、message、search、recommend）下各有一份**一一对应**的 `Dockerfile`；`common/core` 是公共库，不单独打包。
+> 每个可运行模块目录（vidora-gateway、vidora-auth、vidora-system、vidora-video、vidora-content、vidora-interact、vidora-message、vidora-search、vidora-recommend）下各有一份**一一对应**的 `Dockerfile`；`vidora-common/common-core` 是公共库，不单独打包。
 
 ## 编译
 
@@ -73,20 +74,20 @@ $env:JAVA_HOME = 'D:\Java\otherJDK\bellsoft-jdk25.0.4.1+1-windows-amd64\jdk-25.0
 
 ```powershell
 $env:JAVA_HOME = 'D:\Java\otherJDK\bellsoft-jdk25.0.4.1+1-windows-amd64\jdk-25.0.4.1'
-& 'D:\apache-maven-3.9.6\bin\mvn.cmd' -f 'pom.xml' -pl modules/video -am clean compile -o
+& 'D:\apache-maven-3.9.6\bin\mvn.cmd' -f 'pom.xml' -pl vidora-modules/vidora-video -am clean compile -o
 ```
 
-## FFmpeg 前置依赖（仅 modules/video 转码需要）
+## FFmpeg 前置依赖（仅 vidora-video 转码需要）
 
-`modules/video` 的转码与媒体探测通过 `ProcessBuilder` 调用**本机** `ffmpeg` / `ffprobe` 命令行。
+`vidora-modules/vidora-video` 的转码与媒体探测通过 `ProcessBuilder` 调用**本机** `ffmpeg` / `ffprobe` 命令行。
 
 - **开发机当前未安装** ffmpeg/ffprobe（`where ffmpeg` 验证找不到）。只跑上传/列表/下载（不触发探测与转码）不影响编译与启动；一旦调用上传（会触发 ffprobe 探测）或转码，会抛出明确报错（含"请确认已安装并配置路径"提示）。
-- **生产环境**：凡是运行 `modules/video` 且启用转码的节点，**必须预装 ffmpeg + ffprobe**（Linux `apt/yum install ffmpeg` 或官方静态构建；Windows 下载 ffmpeg.org 构建，并在 `application.yml` 的 `ffmpeg.ffmpeg-path` 配绝对路径）。
-- 不想每个业务 Pod 都装 CLI 的方案：把转码抽成**专用转码集群 / Worker**，或改用**云转码**（阿里云 MPS / 腾讯云 MPS），`modules/video` 仅"提交任务 + 轮询结果"。详见 `docs/ARCHITECTURE.md` 第 8 节。
+- **生产环境**：凡是运行 `vidora-modules/vidora-video` 且启用转码的节点，**必须预装 ffmpeg + ffprobe**（Linux `apt/yum install ffmpeg` 或官方静态构建；Windows 下载 ffmpeg.org 构建，并在 `application.yml` 的 `ffmpeg.ffmpeg-path` 配绝对路径）。
+- 不想每个业务 Pod 都装 CLI 的方案：把转码抽成**专用转码集群 / Worker**，或改用**云转码**（阿里云 MPS / 腾讯云 MPS），`vidora-modules/vidora-video` 仅"提交任务 + 轮询结果"。详见 `docs/ARCHITECTURE.md` 第 8 节。
 
 `transcode.enabled=false` 时可关闭上传自动转码（仅存储源文件，play-url 直接返回源文件地址）。
 
-## 视频转码架构（modules/video / 运行名 video-service / 8102，已落地）
+## 视频转码架构（vidora-video / 运行名 video-service / 8102，已落地）
 
 采用**大厂式异步解耦 + 多清晰度 HLS** 流水线（参考 Jellyfin 的 `MediaEncoder` 进程管理思路）：
 
@@ -121,7 +122,7 @@ mysql -u root -p < SQL/07_recommend_service.sql
 ```powershell
 $env:JAVA_HOME = 'D:\Java\otherJDK\bellsoft-jdk25.0.4.1+1-windows-amd64\jdk-25.0.4.1'
 & 'D:\apache-maven-3.9.6\bin\mvn.cmd' -f 'pom.xml' clean install -DskipTests -o
-& 'D:\apache-maven-3.9.6\bin\mvn.cmd' -f 'pom.xml' -pl gateway,auth,modules/system,modules/video spring-boot:run -o
+& 'D:\apache-maven-3.9.6\bin\mvn.cmd' -f 'pom.xml' -pl vidora-gateway,vidora-auth,vidora-modules/vidora-system,vidora-modules/vidora-video spring-boot:run -o
 ```
 
 Nacos **不是强依赖**：各服务 `spring.config.import` 使用了 `optional:nacos:`，
@@ -173,20 +174,20 @@ npm run build    # 产出 dist/，可交给 nginx 托管
 
 ## Docker 部署（每个微服务一一对应）
 
-后端 9 个可运行服务各有一份**一一对应**的 `Dockerfile`（基础镜像 `eclipse-temurin:25-jdk`），`common/core` 是库不单独打包。统一用 `deploy/docker-compose.yml` 编排。
+后端 9 个可运行服务各有一份**一一对应**的 `Dockerfile`（基础镜像 `eclipse-temurin:25-jdk`），`vidora-common/common-core` 是库不单独打包。统一用 `deploy/docker-compose.yml` 编排。
 
 ### 服务与 Dockerfile 对应关系
 | 服务目录 | Dockerfile | 容器内端口 | 说明 |
 |----------|-----------|-----------|------|
-| `gateway/` | `Dockerfile` | 8080 | API 网关 |
-| `auth/` | `Dockerfile` | 8101 | 登录/注册/JWT 认证 |
-| `modules/system/` | `Dockerfile` | 8108 | 用户/角色/菜单/RBAC |
-| `modules/video/` | `Dockerfile` | 8102 | 视频/转码 |
-| `modules/content/` | `Dockerfile` | 8103 | 内容 |
-| `modules/interact/` | `Dockerfile` | 8104 | 互动 |
-| `modules/message/` | `Dockerfile` | 8105 | 消息 |
-| `modules/search/` | `Dockerfile` | 8106 | 搜索 |
-| `modules/recommend/` | `Dockerfile` | 8107 | 推荐 |
+| `vidora-gateway/` | `Dockerfile` | 8080 | API 网关 |
+| `vidora-auth/` | `Dockerfile` | 8101 | 登录/注册/JWT 认证 |
+| `vidora-modules/vidora-system/` | `Dockerfile` | 8108 | 用户/角色/菜单/RBAC |
+| `vidora-modules/vidora-video/` | `Dockerfile` | 8102 | 视频/转码 |
+| `vidora-modules/vidora-content/` | `Dockerfile` | 8103 | 内容 |
+| `vidora-modules/vidora-interact/` | `Dockerfile` | 8104 | 互动 |
+| `vidora-modules/vidora-message/` | `Dockerfile` | 8105 | 消息 |
+| `vidora-modules/vidora-search/` | `Dockerfile` | 8106 | 搜索 |
+| `vidora-modules/vidora-recommend/` | `Dockerfile` | 8107 | 推荐 |
 
 `deploy/` 还编排了基础设施：**MySQL 8 / Redis 7 / Nacos 3.2.4 / MinIO**，以及 **nginx 反代**（把 80 端口转发到网关 8080，并提供前端静态托管示例）。
 
@@ -207,7 +208,7 @@ docker compose ps
 ```
 
 > 详细变量说明、端口映射、停止/清理与常见问题见 `deploy/README.md`。
-> ⚠️ `modules/video` 镜像若要启用转码，需基于 `jrottenberg/ffmpeg` 等多阶段镜像预装 ffmpeg/ffprobe（当前 Dockerfile 用 `eclipse-temurin:25-jdk` 基础镜像，未含 ffmpeg；生产转码建议改用"独立转码集群/云 MPS"，与 `docs/ARCHITECTURE.md` 第 8 节一致）。
+> ⚠️ `vidora-modules/vidora-video` 镜像若要启用转码，需基于 `jrottenberg/ffmpeg` 等多阶段镜像预装 ffmpeg/ffprobe（当前 Dockerfile 用 `eclipse-temurin:25-jdk` 基础镜像，未含 ffmpeg；生产转码建议改用"独立转码集群/云 MPS"，与 `docs/ARCHITECTURE.md` 第 8 节一致）。
 
 ## 文档
 

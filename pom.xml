@@ -4,7 +4,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.video.platform</groupId>
+    <groupId>org.tiglor</groupId>
     <artifactId>vidora-cloud</artifactId>
     <version>1.0.0-SNAPSHOT</version>
     <packaging>pom</packaging>
@@ -54,16 +54,10 @@
     </properties>
 
     <modules>
-        <module>common/core</module>
-        <module>gateway</module>
-        <module>auth</module>
-        <module>modules/system</module>
-        <module>modules/video</module>
-        <module>modules/content</module>
-        <module>modules/interact</module>
-        <module>modules/message</module>
-        <module>modules/search</module>
-        <module>modules/recommend</module>
+        <module>vidora-common</module>
+        <module>vidora-gateway</module>
+        <module>vidora-auth</module>
+        <module>vidora-modules</module>
     </modules>
 
     <dependencyManagement>
@@ -95,7 +89,7 @@
 
             <!-- 内部公共模块 -->
             <dependency>
-                <groupId>com.video.platform</groupId>
+                <groupId>org.tiglor</groupId>
                 <artifactId>vidora-common-core</artifactId>
                 <version>${project.version}</version>
             </dependency>

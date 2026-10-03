@@ -128,7 +128,7 @@ services:
 
   system-service:
     build:
-      context: ../modules/system
+      context: ../vidora-modules/system
       dockerfile: Dockerfile
     image: ${IMAGE_PREFIX}/system-service:${IMAGE_TAG}
     container_name: vidora-system
@@ -151,7 +151,7 @@ services:
 
   video-service:
     build:
-      context: ../modules/video
+      context: ../vidora-modules/video
       dockerfile: Dockerfile
     image: ${IMAGE_PREFIX}/video-service:${IMAGE_TAG}
     container_name: vidora-video
@@ -183,7 +183,7 @@ services:
 
   content-service:
     build:
-      context: ../modules/content
+      context: ../vidora-modules/content
       dockerfile: Dockerfile
     image: ${IMAGE_PREFIX}/content-service:${IMAGE_TAG}
     container_name: vidora-content
@@ -206,7 +206,7 @@ services:
 
   interact-service:
     build:
-      context: ../modules/interact
+      context: ../vidora-modules/interact
       dockerfile: Dockerfile
     image: ${IMAGE_PREFIX}/interact-service:${IMAGE_TAG}
     container_name: vidora-interact
@@ -229,7 +229,7 @@ services:
 
   message-service:
     build:
-      context: ../modules/message
+      context: ../vidora-modules/message
       dockerfile: Dockerfile
     image: ${IMAGE_PREFIX}/message-service:${IMAGE_TAG}
     container_name: vidora-message
@@ -252,7 +252,7 @@ services:
 
   search-service:
     build:
-      context: ../modules/search
+      context: ../vidora-modules/search
       dockerfile: Dockerfile
     image: ${IMAGE_PREFIX}/search-service:${IMAGE_TAG}
     container_name: vidora-search
@@ -275,7 +275,7 @@ services:
 
   recommend-service:
     build:
-      context: ../modules/recommend
+      context: ../vidora-modules/recommend
       dockerfile: Dockerfile
     image: ${IMAGE_PREFIX}/recommend-service:${IMAGE_TAG}
     container_name: vidora-recommend
