@@ -1,0 +1,96 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: gateway-service
+  config:
+    import:
+      - optional:nacos:${spring.application.name}.yml
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 127.0.0.1:8848
+      config:
+        server-addr: 127.0.0.1:8848
+        file-extension: yml
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+      routes:
+        - id: auth-service
+          uri: lb://auth-service
+          predicates:
+            - Path=/api/auth/**
+          filters:
+            - StripPrefix=1
+        - id: user-menu-service
+          uri: lb://system-service
+          predicates:
+            - Path=/api/menus/**
+          filters:
+            - StripPrefix=1
+        - id: user-role-service
+          uri: lb://system-service
+          predicates:
+            - Path=/api/roles/**
+          filters:
+            - StripPrefix=1
+        - id: user-admin-service
+          uri: lb://system-service
+          predicates:
+            - Path=/api/users/**
+          filters:
+            - StripPrefix=1
+        - id: video-service
+          uri: lb://video-service
+          predicates:
+            - Path=/api/videos/**
+          filters:
+            - StripPrefix=1
+        - id: content-service
+          uri: lb://content-service
+          predicates:
+            - Path=/api/categories/**
+          filters:
+            - StripPrefix=1
+        - id: interact-service
+          uri: lb://interact-service
+          predicates:
+            - Path=/api/comments/**
+          filters:
+            - StripPrefix=1
+        - id: message-service
+          uri: lb://message-service
+          predicates:
+            - Path=/api/messages/**
+          filters:
+            - StripPrefix=1
+        - id: search-service
+          uri: lb://search-service
+          predicates:
+            - Path=/api/search/**
+          filters:
+            - StripPrefix=1
+        - id: recommend-service
+          uri: lb://recommend-service
+          predicates:
+            - Path=/api/recommends/**
+          filters:
+            - StripPrefix=1
+    sentinel:
+      transport:
+        dashboard: 127.0.0.1:8080
+      eager: true
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
+      password: xiao123456
+      database: 0
+
+logging:
+  level:
+    root: info

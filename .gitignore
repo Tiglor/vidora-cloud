@@ -1,0 +1,23 @@
+# Java / Maven
+**/target/
+**/.mvn/timing.properties
+
+# Local runtime data and logs
+**/*.log
+**/logs/
+**/upload/
+**/uploads/
+**/transcode/
+**/storage/
+
+# Deployment secrets
+deploy/.env
+!deploy/.env.example
+
+# IDE / OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+

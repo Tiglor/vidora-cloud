@@ -1,0 +1,120 @@
+server:
+  port: 8102
+
+spring:
+  application:
+    name: video-service
+  config:
+    import:
+      - optional:nacos:${spring.application.name}.yml
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 127.0.0.1:8848
+      config:
+        server-addr: 127.0.0.1:8848
+        file-extension: yml
+    # OpenFeign：服务间调用统一使用 Nacos 服务名，不写死 IP/端口
+    openfeign:
+      client:
+        config:
+          default:
+            connectTimeout: 2000
+            readTimeout: 5000
+            loggerLevel: basic
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://127.0.0.1:3306/video_service?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+    username: root
+    password: 123456
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
+      password: xiao123456
+      database: 0
+  servlet:
+    multipart:
+      max-file-size: 2GB
+      max-request-size: 2GB
+
+# 视频存储：minio（对象存储，默认）/ local（本地磁盘，无需 MinIO）
+storage:
+  type: minio
+  endpoint: http://127.0.0.1:9000
+  access-key: minioadmin
+  secret-key: minioadmin
+  bucket: videos
+  local-dir: ./upload
+  url-expire-seconds: 3600
+  local-public-base: http://localhost:8102/files
+
+# FFmpeg（需本机已安装 ffmpeg/ffprobe，Windows 可填绝对路径如 D:/ffmpeg/bin/ffmpeg.exe）
+ffmpeg:
+  ffmpeg-path: ffmpeg
+  ffprobe-path: ffprobe
+  hls-time: 10
+  work-dir: ./transcode
+
+# 转码（异步多清晰度 HLS；生产建议独立转码集群/云 MPS 替代 @Async 线程池）
+transcode:
+  enabled: true
+  hwaccel: none            # none(软编) | cuda(NVENC) | qsv(Intel QuickSync)
+  segment-type: fmp4       # fmp4(CMAF，现代默认) | ts(传统 MPEG-TS)
+  hls-time: 4
+  master-name: master.m3u8
+  core-pool-size: 2
+  max-pool-size: 4
+  max-retry: 2
+  renditions:
+    - name: 1080p
+      width: 1920
+      height: 1080
+      video-bitrate: 4500
+      maxrate: 5500
+      bufsize: 11000
+      audio-bitrate: 192
+    - name: 720p
+      width: 1280
+      height: 720
+      video-bitrate: 2500
+      maxrate: 3200
+      bufsize: 6400
+      audio-bitrate: 128
+    - name: 480p
+      width: 854
+      height: 480
+      video-bitrate: 1200
+      maxrate: 1500
+      bufsize: 3000
+      audio-bitrate: 128
+    - name: 360p
+      width: 640
+      height: 360
+      video-bitrate: 800
+      maxrate: 1000
+      bufsize: 2000
+      audio-bitrate: 96
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      logic-delete-field: isDeleted
+      logic-not-delete-value: 0
+      logic-delete-value: 1
+  mapper-locations: classpath*:/mapper/*.xml
+
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+
+logging:
+  level:
+    root: info
