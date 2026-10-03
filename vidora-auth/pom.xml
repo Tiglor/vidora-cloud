@@ -13,7 +13,8 @@
 
     <artifactId>vidora-auth</artifactId>
     <packaging>jar</packaging>
-    <description>视频播放平台 - 登录、注册、令牌与身份认证</description>
+    <name>Vidora Auth</name>
+    <description>Login, registration, JWT token and identity authentication</description>
 
     <dependencies>
         <dependency>

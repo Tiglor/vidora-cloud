@@ -13,7 +13,6 @@
 
     <artifactId>vidora-gateway</artifactId>
     <packaging>jar</packaging>
-    <description>视频播放平台 - 网关服务</description>
 
     <dependencies>
         <!-- 网关基于 WebFlux，禁止引入 spring-boot-starter-web（WebMVC） -->

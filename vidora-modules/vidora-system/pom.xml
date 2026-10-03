@@ -6,15 +6,13 @@
 
     <parent>
         <groupId>org.tiglor</groupId>
-        <artifactId>vidora-cloud</artifactId>
+        <artifactId>vidora-modules</artifactId>
         <version>1.0.0-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
     <artifactId>vidora-system</artifactId>
     <packaging>jar</packaging>
-    <name>系统权限服务</name>
-    <description>视频播放平台 - 用户、角色、菜单与权限管理</description>
 
     <dependencies>
         <dependency>

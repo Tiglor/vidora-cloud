@@ -6,15 +6,13 @@
 
     <parent>
         <groupId>org.tiglor</groupId>
-        <artifactId>vidora-cloud</artifactId>
+        <artifactId>vidora-modules</artifactId>
         <version>1.0.0-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
     <artifactId>vidora-video</artifactId>
     <packaging>jar</packaging>
-    <name>视频服务</name>
-    <description>视频播放平台 - 视频服务</description>
 
     <dependencies>
         <dependency>

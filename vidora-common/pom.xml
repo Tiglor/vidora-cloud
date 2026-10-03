@@ -13,7 +13,6 @@
 
     <artifactId>vidora-common</artifactId>
     <packaging>pom</packaging>
-    <description>Vidora Cloud 公共能力模块聚合</description>
 
     <modules>
         <module>common-core</module>

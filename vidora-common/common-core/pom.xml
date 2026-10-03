@@ -6,15 +6,13 @@
 
     <parent>
         <groupId>org.tiglor</groupId>
-        <artifactId>vidora-cloud</artifactId>
+        <artifactId>vidora-common</artifactId>
         <version>1.0.0-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
     <artifactId>vidora-common-core</artifactId>
     <packaging>jar</packaging>
-    <name>公共核心模块</name>
-    <description>统一响应、异常、基础实体、JWT、分页等公共能力</description>
 
     <dependencies>
         <dependency>
