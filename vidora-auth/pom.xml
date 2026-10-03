@@ -13,7 +13,6 @@
 
     <artifactId>vidora-auth</artifactId>
     <packaging>jar</packaging>
-    <name>统一身份认证服务</name>
     <description>视频播放平台 - 登录、注册、令牌与身份认证</description>
 
     <dependencies>

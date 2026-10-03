@@ -13,7 +13,6 @@
 
     <artifactId>vidora-modules</artifactId>
     <packaging>pom</packaging>
-    <name>业务模块聚合</name>
     <description>Vidora Cloud 业务服务模块聚合</description>
 
     <modules>
