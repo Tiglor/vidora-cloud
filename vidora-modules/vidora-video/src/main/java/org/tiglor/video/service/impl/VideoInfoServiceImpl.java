@@ -4,9 +4,12 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.StringUtils;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.baomidou.mybatisplus.spring.service.impl.ServiceImpl;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.tiglor.common.core.BizException;
 import org.tiglor.common.core.ResultCode;
+import org.tiglor.common.redis.CacheNames;
 import org.tiglor.video.entity.VideoInfo;
 import org.tiglor.video.mapper.VideoInfoMapper;
 import org.tiglor.video.service.MediaInfo;
@@ -19,6 +22,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.Serializable;
 import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.UUID;
@@ -73,7 +77,7 @@ public class VideoInfoServiceImpl extends ServiceImpl<VideoInfoMapper, VideoInfo
         if (file == null || file.isEmpty()) {
             throw new BizException(ResultCode.VALIDATE_FAILED, "上传文件为空");
         }
-        String videoKey = UUID.randomUUID().toString().replace("-", "");
+        String videoKey = newVideoKey();
         String ext = extensionOf(file.getOriginalFilename());
         String objectName = "video/" + LocalDate.now() + "/" + videoKey + (ext.isEmpty() ? "" : "." + ext);
 
@@ -93,21 +97,34 @@ public class VideoInfoServiceImpl extends ServiceImpl<VideoInfoMapper, VideoInfo
         v.setCategoryId(categoryId);
         v.setFileSize(file.getSize());
         v.setStoragePath(objectName);
+        return probeAndSave(v);
+    }
+
+    @Override
+    public VideoInfo registerStoredVideo(VideoInfo draft) {
+        if (StringUtils.isBlank(draft.getVideoKey())) {
+            draft.setVideoKey(newVideoKey());
+        }
+        return probeAndSave(draft);
+    }
+
+    /** 补计数初值 → ffprobe 探测元信息 → 落库（状态=待转码） */
+    private VideoInfo probeAndSave(VideoInfo v) {
         v.setStatus(STATUS_UPLOADED);
         v.setPlayCount(0);
         v.setLikeCount(0);
         v.setCommentCount(0);
         v.setShareCount(0);
 
-        // 3. ffprobe 探测元信息（未安装 ffprobe 时降级，不影响上传）
+        // ffprobe 探测元信息（未安装 ffprobe 时降级，不影响上传）
         try {
-            Path local = storageService.fetchToTempFile(objectName);
+            Path local = storageService.fetchToTempFile(v.getStoragePath());
             MediaInfo info = ffmpegService.probe(local);
             v.setDuration(info.getDurationSec());
             v.setWidth(info.getWidth());
             v.setHeight(info.getHeight());
         } catch (Exception e) {
-            log.warn("媒体信息探测失败（ffprobe 未安装或不可用），跳过。videoKey={}", videoKey, e);
+            log.warn("媒体信息探测失败（ffprobe 未安装或不可用），跳过。videoKey={}", v.getVideoKey(), e);
         }
 
         save(v);
@@ -124,6 +141,9 @@ public class VideoInfoServiceImpl extends ServiceImpl<VideoInfoMapper, VideoInfo
     }
 
     @Override
+    // 播放页高频调用且 10 分钟内基本不变；只缓存派生的播放地址，
+    // 不缓存 getById —— 转码流程会先读实体、几分钟后整体写回，缓存实体会放大丢失更新窗口
+    @Cacheable(cacheNames = CacheNames.VIDEO_PLAY_URL, key = "#id")
     public String getPlayUrl(Long id) {
         VideoInfo video = getById(id);
         if (video == null) {
@@ -137,6 +157,25 @@ public class VideoInfoServiceImpl extends ServiceImpl<VideoInfoMapper, VideoInfo
             return storageService.downloadUrl(video.getStoragePath());
         }
         return "https://cdn.example.com/" + video.getVideoKey() + "/index.m3u8";
+    }
+
+    // ---------- 写入：失效该视频的播放地址缓存 ----------
+
+    /** 转码完成回写 hlsUrl 走的就是这里，不失效前端最长 10 分钟拿不到新地址 */
+    @Override
+    @CacheEvict(cacheNames = CacheNames.VIDEO_PLAY_URL, key = "#entity.id")
+    public boolean updateById(VideoInfo entity) {
+        return super.updateById(entity);
+    }
+
+    @Override
+    @CacheEvict(cacheNames = CacheNames.VIDEO_PLAY_URL, key = "#id")
+    public boolean removeById(Serializable id) {
+        return super.removeById(id);
+    }
+
+    private static String newVideoKey() {
+        return UUID.randomUUID().toString().replace("-", "");
     }
 
     private static String extensionOf(String filename) {

@@ -6,6 +6,7 @@ import org.tiglor.common.core.security.HeaderAuthenticationFilter;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -46,6 +47,17 @@ public class SecurityConfig {
                                 "/swagger-ui.html",
                                 "/actuator/**",
                                 "/error"
+                        ).permitAll()
+                        // 浏览类 GET 接口：分类、标签、热搜、推荐流配置匿名可访问
+                        .requestMatchers(HttpMethod.GET,
+                                "/categories/list",
+                                "/categories/tree",
+                                "/tags/hot",
+                                "/tags/suggest",
+                                "/hot-searches",
+                                "/hot-searches/**",
+                                "/feed-configs/list",
+                                "/feed-configs/configs/{feedType}"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )

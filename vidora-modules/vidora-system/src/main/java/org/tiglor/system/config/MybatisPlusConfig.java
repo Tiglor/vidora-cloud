@@ -9,7 +9,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-@MapperScan("org.tiglor.system.mapper")
+@MapperScan("org.tiglor.common.user.mapper")
 public class MybatisPlusConfig {
 
     @Bean

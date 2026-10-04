@@ -2,7 +2,7 @@ package org.tiglor.video.service;
 
 import org.tiglor.video.entity.VideoInfo;
 import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.baomidou.mybatisplus.extension.service.IService;
+import com.baomidou.mybatisplus.spring.service.IService;
 import org.springframework.web.multipart.MultipartFile;
 
 public interface VideoInfoService extends IService<VideoInfo> {
@@ -30,6 +30,13 @@ public interface VideoInfoService extends IService<VideoInfo> {
      * 转码由 TranscodeService 异步完成，完成后置为已发布。
      */
     VideoInfo upload(MultipartFile file, String title, String description, Long categoryId, Long userId);
+
+    /**
+     * 源文件已经在对象存储里时建立视频记录（分片上传合并完成后调用）。
+     * 调用方需填好 userId / title / description / categoryId / fileSize / fileHash / storagePath，
+     * 这里负责补 videoKey、初始化计数字段、ffprobe 探测元信息并落库（状态=待转码）。
+     */
+    VideoInfo registerStoredVideo(VideoInfo draft);
 
     /**
      * 获取下载地址（MinIO 为预签名 URL）

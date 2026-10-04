@@ -7,7 +7,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 /**
  * 网关服务启动类
  */
-@SpringBootApplication(scanBasePackages = "org.tiglor.gateway.gatewayservice")
+@SpringBootApplication(scanBasePackages = "org.tiglor")
 
 public class GatewayServiceApplication {
 

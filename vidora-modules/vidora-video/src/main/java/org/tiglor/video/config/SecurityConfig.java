@@ -6,6 +6,7 @@ import org.tiglor.common.core.security.HeaderAuthenticationFilter;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -46,6 +47,15 @@ public class SecurityConfig {
                                 "/swagger-ui.html",
                                 "/actuator/**",
                                 "/error"
+                        ).permitAll()
+                        // 浏览类 GET 接口：视频列表、详情及子资源（owner/play-url/download/transcode-task）匿名可访问
+                        .requestMatchers(HttpMethod.GET,
+                                "/videos/page",
+                                "/videos/{id}",
+                                "/videos/{id}/owner",
+                                "/videos/{id}/play-url",
+                                "/videos/{id}/download",
+                                "/videos/{id}/transcode-task"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )

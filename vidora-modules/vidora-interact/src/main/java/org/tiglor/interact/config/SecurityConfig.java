@@ -6,6 +6,7 @@ import org.tiglor.common.core.security.HeaderAuthenticationFilter;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -46,6 +47,14 @@ public class SecurityConfig {
                                 "/swagger-ui.html",
                                 "/actuator/**",
                                 "/error"
+                        ).permitAll()
+                        // 浏览类 GET 接口：评论列表/回复、播放计数、互动计数、弹幕匿名可访问
+                        .requestMatchers(HttpMethod.GET,
+                                "/comments/video/{videoId}",
+                                "/comments/replies/{rootId}",
+                                "/play-counts/{videoId}",
+                                "/actions/counts",
+                                "/danmaku/video/{videoId}"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )

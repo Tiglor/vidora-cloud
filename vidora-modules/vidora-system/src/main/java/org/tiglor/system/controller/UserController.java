@@ -1,6 +1,6 @@
 package org.tiglor.system.controller;
 
-import org.tiglor.system.entity.User;
+import org.tiglor.common.user.entity.User;
 import org.tiglor.system.service.UserService;
 import org.tiglor.common.core.ApiResult;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;

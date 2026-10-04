@@ -1,67 +1,86 @@
 package org.tiglor.interact.controller;
 
-import org.tiglor.interact.entity.Comment;
-import org.tiglor.interact.service.CommentService;
-import org.tiglor.common.core.security.UserContext;
-import org.tiglor.common.core.ApiResult;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import org.tiglor.common.core.ApiResult;
+import org.tiglor.common.core.security.UserContext;
+import org.tiglor.interact.dto.CommentCreateRequest;
+import org.tiglor.interact.dto.CommentView;
+import org.tiglor.interact.service.CommentService;
 
+import java.util.List;
+
+/**
+ * 评论与回复。
+ * <p>
+ * 读接口和发表接口都只要求登录，不挂权限位——{@code comment:list} 那个权限管的是后台
+ * 「评论管理」页面的可见性，不是「用户能不能看视频下面的评论」。
+ * </p>
+ */
 @RestController
 @RequestMapping("/comments")
 @RequiredArgsConstructor
 public class CommentController {
 
-    private final CommentService service;
+    private static final String PERM_DELETE = "comment:delete";
 
+    private final CommentService commentService;
+
+    /** 某视频的顶层评论分页，每条带前几条回复。sort=hot 按点赞数，默认按时间倒序 */
     @GetMapping("/video/{videoId}")
-    public ApiResult<Page<Comment>> listByVideo(@PathVariable Long videoId,
-                                                @RequestParam(defaultValue = "1") long current,
-                                                @RequestParam(defaultValue = "20") long size) {
-        return ApiResult.ok(service.page(new Page<>(current, size),
-                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Comment>()
-                        .eq(Comment::getVideoId, videoId)
-                        .eq(Comment::getStatus, 1)
-                        .eq(Comment::getParentId, 0)
-                        .orderByDesc(Comment::getCreateTime)));
+    public ApiResult<Page<CommentView>> listByVideo(@PathVariable Long videoId,
+                                                    @RequestParam(defaultValue = "1") long current,
+                                                    @RequestParam(defaultValue = "20") long size,
+                                                    @RequestParam(defaultValue = "new") String sort) {
+        return ApiResult.ok(commentService.listByVideo(videoId, current, size, sort));
     }
 
-    @GetMapping("/page")
-    public ApiResult<Page<Comment>> page(@RequestParam(defaultValue = "1") long current,
-                                           @RequestParam(defaultValue = "10") long size) {
-        return ApiResult.ok(service.page(new Page<>(current, size)));
+    /** 楼中楼「查看更多回复」 */
+    @GetMapping("/replies/{rootId}")
+    public ApiResult<Page<CommentView>> listReplies(@PathVariable Long rootId,
+                                                    @RequestParam(defaultValue = "1") long current,
+                                                    @RequestParam(defaultValue = "20") long size) {
+        return ApiResult.ok(commentService.listReplies(rootId, current, size));
     }
 
-    @GetMapping("/{id}")
-    public ApiResult<Comment> getById(@PathVariable Long id) {
-        return ApiResult.ok(service.getById(id));
-    }
-
+    /** 发表评论或回复。rootId 由服务端从 parentId 推导，客户端传了也不认 */
     @PostMapping
-    public ApiResult<Boolean> save(@RequestBody Comment entity) {
-        Long userId = UserContext.getUserId();
-        if (userId == null || entity.getVideoId() == null || entity.getContent() == null
-                || entity.getContent().isBlank()) {
-            return ApiResult.error(400, "视频和评论内容不能为空");
-        }
-        entity.setUserId(userId);
-        entity.setParentId(entity.getParentId() == null ? 0L : entity.getParentId());
-        entity.setRootId(entity.getRootId() == null ? 0L : entity.getRootId());
-        entity.setLikeCount(0L);
-        entity.setReplyCount(0);
-        entity.setStatus(1);
-        return ApiResult.ok(service.save(entity));
+    public ApiResult<CommentView> publish(@Valid @RequestBody CommentCreateRequest request) {
+        return ApiResult.ok(commentService.publish(request, UserContext.getUserId()));
     }
 
-    @PutMapping("/{id}")
-    public ApiResult<Boolean> update(@PathVariable Long id, @RequestBody Comment entity) {
-        entity.setId(id);
-        return ApiResult.ok(service.updateById(entity));
-    }
-
+    /**
+     * 删除评论。作者本人可删自己的，持有 {@code comment:delete} 的审核者可删任何一条。
+     * <p>
+     * 这里不用 {@code @PreAuthorize}：它表达不了「本人**或**有权限」，
+     * 而把删除接口整体锁成审核者专用又会让用户删不掉自己的评论。
+     * 所以由控制器算出审核者身份，交给 service 做归属判定。
+     * </p>
+     */
     @DeleteMapping("/{id}")
-    public ApiResult<Boolean> remove(@PathVariable Long id) {
-        return ApiResult.ok(service.removeById(id));
+    public ApiResult<Void> delete(@PathVariable Long id) {
+        List<String> permissions = UserContext.getPermissions();
+        boolean moderator = permissions != null && permissions.contains(PERM_DELETE);
+        commentService.delete(id, UserContext.getUserId(), moderator);
+        return ApiResult.ok();
+    }
+
+    /** 审核：把评论置为正常(1)或审核中(2) */
+    @PutMapping("/{id}/audit")
+    @PreAuthorize("hasAuthority('comment:audit')")
+    public ApiResult<Void> audit(@PathVariable Long id, @RequestParam int status) {
+        commentService.audit(id, status);
+        return ApiResult.ok();
     }
 }

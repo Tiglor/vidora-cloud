@@ -7,7 +7,7 @@ import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 /**
  * 互动服务启动类
  */
-@SpringBootApplication(scanBasePackages = "org.tiglor.system")
+@SpringBootApplication(scanBasePackages = "org.tiglor")
 @EnableDiscoveryClient
 public class InteractServiceApplication {
 

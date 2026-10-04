@@ -1,6 +1,6 @@
 # 视频播放平台 - auth-service 镜像（端口 8101）
 # 在 vidora-cloud 根目录先执行 Maven 打包，再构建镜像：
-#   docker build -t vidora/auth-service:1.0.0 auth
+#   docker build -t vidora/auth-service:1.0.0 vidora-auth
 FROM eclipse-temurin:25-jdk
 WORKDIR /app
 COPY target/*.jar app.jar

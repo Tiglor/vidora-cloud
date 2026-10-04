@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.stream.Stream;
 
 /**
@@ -14,6 +15,10 @@ import java.util.stream.Stream;
  * <p>
  * 新增 {@link #publicUrl(String)} 与 {@link #uploadDir(Path, String)} 以支持转码产物（HLS 切片）回传对象存储
  * 并对外暴露可被 CDN 回源的公共地址——这是“对象存储 + CDN”播放分发的标准做法。
+ * </p>
+ * <p>
+ * {@link #exists(String)}、{@link #listObjectNames(String)}、{@link #compose(String, List)} 服务于分片上传：
+ * 前两者用于断点续传时向存储求证「哪些分片真的收到了」，后者用于把分片合并成完整文件。
  * </p>
  */
 public interface StorageService {
@@ -32,6 +37,29 @@ public interface StorageService {
 
     /** 读取为本地临时文件（转码前需要落到磁盘） */
     Path fetchToTempFile(String objectName);
+
+    /** 对象是否存在。存储不可达时应抛异常而不是返回 false，否则秒传会误判成「文件丢了」 */
+    boolean exists(String objectName);
+
+    /** 列出前缀下的全部对象名（递归、按名称升序）；前缀不存在时返回空列表 */
+    List<String> listObjectNames(String prefix);
+
+    /**
+     * 把多个源对象按给定顺序合并成目标对象，源对象不会被删除。
+     * MinIO 走服务端 compose（数据不过应用进程），本地存储按顺序拼接文件。
+     */
+    void compose(String targetObjectName, List<String> sourceObjectNames);
+
+    /**
+     * 批量删除。合并完成后要清掉全部分片对象，逐个 {@link #delete(String)} 在分片数上千时
+     * 就是上千次 HTTP 往返，对象存储实现应覆盖为一次批量请求。删除失败只记日志，不抛异常。
+     */
+    default void deleteAll(List<String> objectNames) {
+        if (objectNames == null) {
+            return;
+        }
+        objectNames.forEach(this::delete);
+    }
 
     /**
      * 批量上传目录（递归）到指定前缀，保留相对路径结构。

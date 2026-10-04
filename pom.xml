@@ -29,26 +29,28 @@
         <nacos.client.version>3.2.4</nacos.client.version>
 
         <!-- ORM：Boot4 需要 mybatis-spring 4.x（Spring Framework 7） -->
-        <mybatis-plus.version>3.5.14</mybatis-plus.version>
+        <mybatis-plus.version>3.5.17</mybatis-plus.version>
         <mybatis-spring.version>4.0.0</mybatis-spring.version>
 
         <!-- 接口文档：springdoc 3.x 对应 Boot 4（2.x 是 Boot 3 线） -->
         <springdoc.version>3.1.0</springdoc.version>
 
-        <redisson.version>3.51.0</redisson.version>
         <!-- 对象存储（MinIO / S3 兼容），用于视频文件的上传与存储 -->
         <minio.version>8.5.17</minio.version>
-        <!-- rocketmq-spring 集成库版本（≠ RocketMQ 引擎版本）：
-             2.3.3 -> rocketmq-client 5.3.1；2.3.4 -> rocketmq-client 5.3.2（即 RocketMQ 5.3.x）。
-             注意：rocketmq-spring 2.3.x 按 Spring Framework 5.3.27 编译，尚未适配 Boot 4，
-             故在真正实现 MQ 之前不引入业务服务（见 docs/ARCHITECTURE.md 6.4） -->
-        <rocketmq.version>2.3.4</rocketmq.version>
+        <!-- RocketMQ 引擎客户端版本。
+             不用 rocketmq-spring-boot-starter：2.3.x 按 Spring Framework 5.3.27 编译、未适配 Boot 4，
+             其 RocketMQAutoConfiguration 又会被 Boot 4 的 AutoConfiguration.imports 加载。
+             改为直接依赖原生 rocketmq-client，自行装配 Producer/Consumer 生命周期（见 video 模块 RocketMqConfig）。
+             注意 gRPC 版客户端 rocketmq-client-java 需要 broker 开启 proxy，与当前 namesrv+broker 的 remoting 拓扑不匹配 -->
+        <rocketmq.client.version>5.3.2</rocketmq.client.version>
         <jjwt.version>0.12.6</jjwt.version>
         <!-- Lombok 需 >=1.18.38 才支持 JDK 25 -->
         <lombok.version>1.18.42</lombok.version>
         <hutool.version>5.8.32</hutool.version>
         <mysql.version>9.0.0</mysql.version>
         <maven-compiler-plugin.version>3.14.1</maven-compiler-plugin.version>
+        <!-- Maven 3.9.6 默认绑定 surefire 2.12.4，跑不了 JUnit 5（测试会被静默跳过），必须显式钉版本 -->
+        <maven-surefire-plugin.version>3.6.0</maven-surefire-plugin.version>
     </properties>
 
     <modules>
@@ -91,6 +93,26 @@
                 <artifactId>vidora-common-core</artifactId>
                 <version>${project.version}</version>
             </dependency>
+            <!-- 用户/角色/菜单（RBAC）实体与 Mapper：auth 与 system 共用 user_service 库 -->
+            <dependency>
+                <groupId>org.tiglor</groupId>
+                <artifactId>vidora-common-user</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <!-- Redis 缓存与序列化配置：需要 @Cacheable 的服务引入 -->
+            <dependency>
+                <groupId>org.tiglor</groupId>
+                <artifactId>vidora-common-redis</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <!-- 单元测试支撑：脱离 Spring 容器直接 new ServiceImpl 时的 MyBatis-Plus 装配，
+                 各业务模块以 test scope 引入，不要放进 main scope -->
+            <dependency>
+                <groupId>org.tiglor</groupId>
+                <artifactId>vidora-common-test</artifactId>
+                <version>${project.version}</version>
+                <scope>test</scope>
+            </dependency>
 
             <!-- 工具类 -->
             <dependency>
@@ -104,10 +126,10 @@
                 <version>${hutool.version}</version>
             </dependency>
 
-            <!-- ORM -->
+            <!-- ORM：Spring Boot 4 专用 starter（解决 DataSourceAutoConfiguration 包路径迁移导致的 @AutoConfigureAfter 失效） -->
             <dependency>
                 <groupId>com.baomidou</groupId>
-                <artifactId>mybatis-plus-boot-starter</artifactId>
+                <artifactId>mybatis-plus-spring-boot4-starter</artifactId>
                 <version>${mybatis-plus.version}</version>
             </dependency>
             <!-- MP 3.5.9+ 起 PaginationInnerInterceptor 被拆到该构件（需分页的服务必须引入） -->
@@ -143,17 +165,11 @@
                 <version>${minio.version}</version>
             </dependency>
 
-            <!-- RocketMQ -->
+            <!-- RocketMQ 原生客户端（remoting 协议，直连 namesrv + broker） -->
             <dependency>
                 <groupId>org.apache.rocketmq</groupId>
-                <artifactId>rocketmq-spring-boot-starter</artifactId>
-                <version>${rocketmq.version}</version>
-            </dependency>
-            <!-- Redisson 分布式锁 -->
-            <dependency>
-                <groupId>org.redisson</groupId>
-                <artifactId>redisson-spring-boot-starter</artifactId>
-                <version>${redisson.version}</version>
+                <artifactId>rocketmq-client</artifactId>
+                <version>${rocketmq.client.version}</version>
             </dependency>
             <!-- Sentinel 流量防护 -->
             <dependency>
@@ -201,6 +217,10 @@
                     <version>${maven-compiler-plugin.version}</version>
                     <configuration>
                         <release>${maven.compiler.release}</release>
+                        <!-- 未继承 spring-boot-starter-parent，需显式开启。
+                             Spring Framework 7 已移除 LocalVariableTableParameterNameDiscoverer，
+                             没有 -parameters 时 @Cacheable/@PreAuthorize 的 SpEL 参数名（如 "#userId"）无法解析 -->
+                        <parameters>true</parameters>
                         <annotationProcessorPaths>
                             <path>
                                 <groupId>org.projectlombok</groupId>
@@ -209,6 +229,11 @@
                             </path>
                         </annotationProcessorPaths>
                     </configuration>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <version>${maven-surefire-plugin.version}</version>
                 </plugin>
                 <plugin>
                     <groupId>org.springframework.boot</groupId>

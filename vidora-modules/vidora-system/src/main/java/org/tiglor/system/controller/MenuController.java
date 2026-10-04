@@ -2,7 +2,7 @@ package org.tiglor.system.controller;
 
 import org.tiglor.common.core.ApiResult;
 import org.tiglor.common.core.security.UserContext;
-import org.tiglor.system.entity.Menu;
+import org.tiglor.common.user.entity.Menu;
 import org.tiglor.system.service.MenuService;
 import org.tiglor.system.vo.MenuVO;
 import lombok.RequiredArgsConstructor;

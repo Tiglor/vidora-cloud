@@ -18,14 +18,20 @@ CREATE TABLE IF NOT EXISTS `message_record` (
     `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     PRIMARY KEY (`id`),
     KEY `idx_receiver_type` (`receiver_id`, `msg_type`, `is_read`),
+    -- 私信会话是双向查询：(我发给他) OR (他发给我)。只有 idx_receiver_type 的话
+    -- 「我发出去的」那一半无索引可走，会话越长越慢；补上发件方前缀让两个分支都能命中
+    KEY `idx_sender_receiver` (`sender_id`, `receiver_id`, `msg_type`),
     KEY `idx_create_time` (`create_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='消息主表';
 
 -- 私信会话表
+-- 约定：user_id_a 恒为两人中 id 较小的那个，user_id_b 为较大的。
+-- uk_conversation 是有序唯一键，不归一化的话「1 找 2」和「2 找 1」会各建一行，
+-- 同一段对话被劈成两半，两边各看各的未读数。归一化由 ConversationServiceImpl 负责。
 CREATE TABLE IF NOT EXISTS `message_conversation` (
     `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '会话ID',
-    `user_id_a` BIGINT UNSIGNED NOT NULL COMMENT '用户A',
-    `user_id_b` BIGINT UNSIGNED NOT NULL COMMENT '用户B',
+    `user_id_a` BIGINT UNSIGNED NOT NULL COMMENT '用户A（id 较小者）',
+    `user_id_b` BIGINT UNSIGNED NOT NULL COMMENT '用户B（id 较大者）',
     `last_msg_id` BIGINT UNSIGNED DEFAULT NULL COMMENT '最后一条消息ID',
     `last_msg_time` DATETIME DEFAULT NULL COMMENT '最后消息时间',
     `unread_count_a` INT NOT NULL DEFAULT 0 COMMENT 'A 的未读数',

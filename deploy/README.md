@@ -4,19 +4,21 @@
 
 ```
 vidora-cloud/
-├── auth/Dockerfile                                            ←→ vidora-auth      :8101
-├── gateway/Dockerfile                                         ←→ vidora-gateway   :8080
-└── modules/
-    ├── system/Dockerfile                                      ←→ vidora-system    :8108
-    ├── video/Dockerfile                                       ←→ vidora-video     :8102
-    ├── content/Dockerfile                                     ←→ vidora-content   :8103
-    ├── interact/Dockerfile                                    ←→ vidora-interact  :8104
-    ├── message/Dockerfile                                     ←→ vidora-message   :8105
-    ├── search/Dockerfile                                      ←→ vidora-search    :8106
-    └── recommend/Dockerfile                                   ←→ vidora-recommend :8107
+├── vidora-gateway/Dockerfile                                  ←→ gateway-service   :8080
+├── vidora-auth/Dockerfile                                     ←→ auth-service      :8101
+├── vidora-modules/
+│   ├── vidora-video/Dockerfile                                ←→ video-service     :8102
+│   ├── vidora-content/Dockerfile                              ←→ content-service   :8103
+│   ├── vidora-interact/Dockerfile                             ←→ interact-service  :8104
+│   ├── vidora-message/Dockerfile                              ←→ message-service   :8105
+│   ├── vidora-search/Dockerfile                               ←→ search-service    :8106
+│   ├── vidora-recommend/Dockerfile                            ←→ recommend-service :8107
+│   └── vidora-system/Dockerfile                               ←→ system-service    :8108
+├── SQL/                                                       # 7 个建库建表脚本
 └── deploy/
-    ├── .env                 # 版本 / 密码 / JVM 参数等变量
-    ├── docker-compose.yml   # 编排（MySQL / Redis / Nacos / MinIO + 9 服务）
+    ├── .env.example         # 版本 / 密码 / JWT 密钥等变量模板（复制为 .env 后修改）
+    ├── docker-compose.yml   # 编排（MySQL / Redis / Nacos / MinIO / Sentinel / RocketMQ + 9 服务）
+    ├── rocketmq/broker.conf # Broker 容器网络配置
     └── nginx/nginx.conf     # 可选：/api 反代到网关
 ```
 
@@ -27,7 +29,7 @@ vidora-cloud/
 ```powershell
 $env:JAVA_HOME = 'D:\Java\otherJDK\bellsoft-jdk25.0.4.1+1-windows-amd64\jdk-25.0.4.1'
 & 'D:\apache-maven-3.9.6\bin\mvn.cmd' -f pom.xml `
-  -pl gateway,auth,modules/system,modules/video,modules/content,modules/interact,modules/message,modules/search,modules/recommend `
+  -pl vidora-gateway,vidora-auth,vidora-modules/vidora-system,vidora-modules/vidora-video,vidora-modules/vidora-content,vidora-modules/vidora-interact,vidora-modules/vidora-message,vidora-modules/vidora-search,vidora-modules/vidora-recommend `
   -am package -DskipTests -o
 ```
 
@@ -35,50 +37,76 @@ $env:JAVA_HOME = 'D:\Java\otherJDK\bellsoft-jdk25.0.4.1+1-windows-amd64\jdk-25.0
 
 ## 二、初始化数据库
 
-MySQL 容器起来后，逐条导入建表脚本（每个服务独立 schema 建于 `video_platform` 库内）：
+`SQL/` 下 7 个脚本各自 `CREATE DATABASE`，对应 **7 个独立库**（不是同一个库下的多 schema）：
+
+| 脚本 | 数据库 | 使用方 |
+|------|--------|--------|
+| `01_user_service.sql` | `user_service` | auth-service、system-service（共用 RBAC） |
+| `02_video_service.sql` | `video_service` | video-service |
+| `03_content_service.sql` | `content_service` | content-service |
+| `04_interact_service.sql` | `interact_service` | interact-service |
+| `05_message_service.sql` | `message_service` | message-service |
+| `06_search_service.sql` | `search_service` | search-service |
+| `07_recommend_service.sql` | `recommend_service` | recommend-service |
+
+compose 已把 `../SQL` 挂到 MySQL 的 `/docker-entrypoint-initdb.d`，**首次启动（数据卷为空时）会按 01→07 顺序自动执行**。
+
+若需要手动重跑（例如数据卷已存在、脚本被改动）：
 
 ```bash
-mysql -h 127.0.0.1 -P 3306 -u root -p video_platform < SQL/01_user_service.sql
-mysql -h 127.0.0.1 -P 3306 -u root -p video_platform < SQL/02_video_service.sql
-mysql -h 127.0.0.1 -P 3306 -u root -p video_platform < SQL/03_content_service.sql
-mysql -h 127.0.0.1 -P 3306 -u root -p video_platform < SQL/04_interact_service.sql
-mysql -h 127.0.0.1 -P 3306 -u root -p video_platform < SQL/05_message_service.sql
-mysql -h 127.0.0.1 -P 3306 -u root -p video_platform < SQL/06_search_service.sql
-mysql -h 127.0.0.1 -P 3306 -u root -p video_platform < SQL/07_recommend_service.sql
+docker exec -i vidora-mysql mysql -uroot -p"$MYSQL_ROOT_PASSWORD" < SQL/01_user_service.sql
+# ...其余脚本同理
 ```
 
 ## 三、构建镜像并启动
 
 ```bash
+cp deploy/.env.example deploy/.env      # 然后修改其中所有 change-me
 docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
 ```
 
 - 网关入口：`http://<宿主机>:8080`（对外统一 `/api`）
 - Nacos 控制台：`http://<宿主机>:8848/nacos`（默认 nacos/nacos）
 - MinIO 控制台：`http://<宿主机>:9001`（默认 minioadmin/minioadmin）
+- Sentinel 控制台：`http://<宿主机>:8858`（默认 sentinel/sentinel）
 - 各微服务端口按上图映射
 
 ## 四、配置注入说明
 
-`docker-compose.yml` 已通过环境变量把基础设施地址注入各服务：
+`docker-compose.yml` 已通过环境变量把基础设施地址注入各服务（Spring Boot 宽松绑定，`SPRING_DATASOURCE_URL` → `spring.datasource.url`）：
 
 | 变量 | 作用 |
 |------|------|
-| `SPRING_CLOUD_NACOS_DISCOVERY/CONFIG_SERVER-ADDR` | Nacos 注册/配置中心地址 |
-| `SPRING_DATASOURCE_URL/USERNAME/PASSWORD` | MySQL 连接（主机名 `mysql`） |
-| `SPRING_DATA_REDIS_HOST/PORT/PASSWORD` | Redis 连接（主机名 `redis`） |
-| `STORAGE_*` | MinIO 存储（video-service 启用转码/上传） |
+| `SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR` | Nacos 注册中心地址（当前只用服务发现，未接配置中心） |
+| `SPRING_DATASOURCE_URL` | 各服务自己的库（见上表），主机名 `mysql` |
+| `SPRING_DATASOURCE_USERNAME` / `PASSWORD` | MySQL 账号 |
+| `SPRING_DATA_REDIS_HOST` / `PORT` / `PASSWORD` | Redis 连接（主机名 `redis`） |
+| `SPRING_CLOUD_SENTINEL_TRANSPORT_DASHBOARD` | Sentinel 控制台地址 |
+| `JWT_SECRET` | 签名密钥，**gateway 与 auth 必须相同**，长度 >= 32 字节 |
+| `STORAGE_*` | MinIO 存储（video-service 上传/转码产物） |
 | `FFMPEG_*` | ffmpeg/ffprobe 可执行路径（video-service 转码） |
+| `ROCKETMQ_ENABLED` | 是否启用 MQ 投递转码任务；**应用侧默认 `false`**，容器里必须显式置 `true`，否则转码退回本地线程池、进程重启会丢在途任务 |
+| `ROCKETMQ_NAME_SERVER` | 消息队列 NameServer 地址 |
 
-> 若 `application.yml` 里用的是别的属性名（如 `spring.redis.host`），请按实际改为对应的环境变量形式；服务采用 `optional:nacos:` 导入，Nacos 未就绪也能先以本地配置启动。
+> Nacos 当前**只用于服务注册与发现**，没有接配置中心：每个服务的配置都在自己那一个 `application.yml` 里。
+> Nacos 未就绪时服务仍能启动，只是注册不上、网关找不到下游（重新启用配置中心的步骤见 `docs/ARCHITECTURE.md` 6.2）。
+>
+> 各服务 `application.yml` 里的凭据与地址都写成 `${环境变量:开发默认值}` 形式
+> （`jwt.secret`、数据库/Redis 口令、MinIO AK/SK、`rocketmq.*`），
+> 所以上表这些变量既能覆盖容器内配置，裸机/IDE 直接跑时也能用同一套变量名注入，无需改文件。
 
 ## 五、视频转码的 FFmpeg 依赖
 
 `video-service` 转码依赖 `ffmpeg` + `ffprobe` 命令行：
 
-- 当前基础镜像（eclipse-temurin）**不含 ffmpeg**，直接转码会失败。两种解决：
-  1. 改用自带 ffmpeg 的基础镜像（如 `jrottenberg/ffmpeg` 叠加，或自行制作 `eclipse-temurin:25-jdk + ffmpeg` 镜像）；
-  2. 把转码抽成独立转码集群 / 改用云 MPS，video-service 仅提交任务 + 轮询结果（见 `docs/ARCHITECTURE.md` 第 8 节）。
+- 该服务的 Dockerfile 已在构建期 `apt-get install ffmpeg`，容器内可直接转码；构建此镜像时需要能访问 apt 源。
+- 若在离线环境构建，可改为运行时挂载宿主机二进制：
+  ```yaml
+  volumes:
+    - /usr/bin/ffmpeg:/usr/bin/ffmpeg:ro
+    - /usr/bin/ffprobe:/usr/bin/ffprobe:ro
+  ```
+- 更彻底的做法是把转码抽成独立转码集群 / 改用云 MPS，video-service 仅提交任务 + 轮询结果（见 `docs/ARCHITECTURE.md` 第 8 节）。
 - `transcode.enabled=false` 时可关闭上传自动转码（仅存源文件，`play-url` 返回源文件地址）。
 
 ## 六、前端 Web 端

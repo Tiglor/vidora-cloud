@@ -4,17 +4,33 @@ server:
 spring:
   application:
     name: video-service
-  config:
-    import:
-      - optional:nacos:${spring.application.name}.yml
+
+  # Datasource
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://127.0.0.1:3306/video_service?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+    username: ${SPRING_DATASOURCE_USERNAME:root}
+    password: ${SPRING_DATASOURCE_PASSWORD:123456}
+  servlet:
+    multipart:
+      max-file-size: 2GB
+      max-request-size: 2GB
+
+  # Redis
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:127.0.0.1}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      password: ${SPRING_DATA_REDIS_PASSWORD:xiao123456}
+      database: 0
+
   cloud:
+    # Nacos：当前只用服务注册与发现，配置中心暂缓（重新启用步骤见 docs/ARCHITECTURE.md 6.2）
     nacos:
       discovery:
         server-addr: 127.0.0.1:8848
-      config:
-        server-addr: 127.0.0.1:8848
-        file-extension: yml
-    # OpenFeign：服务间调用统一使用 Nacos 服务名，不写死 IP/端口
+
+    # OpenFeign
     openfeign:
       client:
         config:
@@ -22,45 +38,42 @@ spring:
             connectTimeout: 2000
             readTimeout: 5000
             loggerLevel: basic
-  datasource:
-    driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://127.0.0.1:3306/video_service?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
-    username: root
-    password: 123456
-  data:
-    redis:
-      host: 127.0.0.1
-      port: 6379
-      password: xiao123456
-      database: 0
-  servlet:
-    multipart:
-      max-file-size: 2GB
-      max-request-size: 2GB
 
-# 视频存储：minio（对象存储，默认）/ local（本地磁盘，无需 MinIO）
+# MyBatis-Plus
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      logic-delete-field: isDeleted
+      logic-not-delete-value: 0
+      logic-delete-value: 1
+  mapper-locations: classpath*:/mapper/*.xml
+
+# Storage: minio | local
 storage:
   type: minio
-  endpoint: http://127.0.0.1:9000
-  access-key: minioadmin
-  secret-key: minioadmin
+  endpoint: ${STORAGE_ENDPOINT:http://127.0.0.1:9000}
+  access-key: ${STORAGE_ACCESS_KEY:minioadmin}
+  secret-key: ${STORAGE_SECRET_KEY:minioadmin}
   bucket: videos
   local-dir: ./upload
   url-expire-seconds: 3600
   local-public-base: http://localhost:8102/files
 
-# FFmpeg（需本机已安装 ffmpeg/ffprobe，Windows 可填绝对路径如 D:/ffmpeg/bin/ffmpeg.exe）
+# FFmpeg (requires ffmpeg/ffprobe on PATH or absolute path)
 ffmpeg:
   ffmpeg-path: ffmpeg
   ffprobe-path: ffprobe
   hls-time: 10
   work-dir: ./transcode
 
-# 转码（异步多清晰度 HLS；生产建议独立转码集群/云 MPS 替代 @Async 线程池）
+# Transcode (async multi-bitrate HLS)
 transcode:
   enabled: true
-  hwaccel: none            # none(软编) | cuda(NVENC) | qsv(Intel QuickSync)
-  segment-type: fmp4       # fmp4(CMAF，现代默认) | ts(传统 MPEG-TS)
+  hwaccel: none            # none | cuda(NVENC) | qsv(Intel QuickSync)
+  segment-type: fmp4       # fmp4(CMAF) | ts(MPEG-TS)
   hls-time: 4
   master-name: master.m3u8
   core-pool-size: 2
@@ -96,17 +109,22 @@ transcode:
       bufsize: 2000
       audio-bitrate: 96
 
-mybatis-plus:
-  configuration:
-    map-underscore-to-camel-case: true
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
-  global-config:
-    db-config:
-      logic-delete-field: isDeleted
-      logic-not-delete-value: 0
-      logic-delete-value: 1
-  mapper-locations: classpath*:/mapper/*.xml
+# RocketMQ：转码任务的持久化投递
+# enabled=false 时不创建 MQ 客户端，转码退回本地 transcodeExecutor 线程池（进程重启会丢在途任务）
+rocketmq:
+  enabled: ${ROCKETMQ_ENABLED:false}
+  name-server: ${ROCKETMQ_NAME_SERVER:127.0.0.1:9876}
+  producer-group: vidora-video-transcode-producer
+  consumer-group: vidora-video-transcode-consumer
+  transcode-topic: vidora-transcode-task
+  send-timeout-millis: 3000
+  # 消费失败后由 broker 重投的上限；耗尽则把任务置为失败并 ack，前端才能轮询到终态
+  max-reconsume-times: 3
+  # 转码是 CPU/IO 重活，消费并发与 transcode.core-pool-size 对齐即可，开太大只是互相抢 CPU
+  consume-thread-min: 2
+  consume-thread-max: 4
 
+# SpringDoc OpenAPI
 springdoc:
   api-docs:
     enabled: true
@@ -115,6 +133,7 @@ springdoc:
     path: /swagger-ui.html
     enabled: true
 
+# Logging
 logging:
   level:
     root: info

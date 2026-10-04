@@ -16,5 +16,8 @@
 
     <modules>
         <module>common-core</module>
+        <module>common-user</module>
+        <module>common-redis</module>
+        <module>common-test</module>
     </modules>
 </project>

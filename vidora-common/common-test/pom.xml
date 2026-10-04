@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.tiglor</groupId>
+        <artifactId>vidora-common</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>vidora-common-test</artifactId>
+    <packaging>jar</packaging>
+
+    <description>
+        单元测试支撑。业务模块的 ServiceImpl 测试要在没有 Spring / MyBatis 容器的情况下
+        直接 new 出来，需要手动初始化 MyBatis-Plus 的 lambda 列名缓存并反射注入 mock Mapper；
+        这段样板每个模块都要，抽到这里由各方以 test scope 引入。
+        只依赖 MyBatis-Plus，不依赖 JUnit / Mockito，桩怎么写留给各模块自己决定。
+    </description>
+
+    <dependencies>
+        <!-- CrudRepository / AbstractRepository（ServiceImpl 的父类）在 mybatis-plus-spring 里 -->
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-spring</artifactId>
+            <version>${mybatis-plus.version}</version>
+        </dependency>
+        <!-- TableInfoHelper / MybatisConfiguration -->
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-core</artifactId>
+            <version>${mybatis-plus.version}</version>
+        </dependency>
+    </dependencies>
+</project>

@@ -4,93 +4,111 @@ server:
 spring:
   application:
     name: gateway-service
-  config:
-    import:
-      - optional:nacos:${spring.application.name}.yml
+
+  # Redis
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:127.0.0.1}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      password: ${SPRING_DATA_REDIS_PASSWORD:xiao123456}
+      database: 0
+
   cloud:
+    # Nacos：当前只用服务注册与发现，配置中心暂缓（重新启用步骤见 docs/ARCHITECTURE.md 6.2）
     nacos:
       discovery:
         server-addr: 127.0.0.1:8848
-      config:
-        server-addr: 127.0.0.1:8848
-        file-extension: yml
+
+    # Spring Cloud Gateway (5.0 前缀变更为 spring.cloud.gateway.server.webflux)
     gateway:
-      discovery:
-        locator:
-          enabled: true
-          lower-case-service-id: true
-      routes:
-        - id: auth-service
-          uri: lb://auth-service
-          predicates:
-            - Path=/api/auth/**
-          filters:
-            - StripPrefix=1
-        - id: user-menu-service
-          uri: lb://system-service
-          predicates:
-            - Path=/api/menus/**
-          filters:
-            - StripPrefix=1
-        - id: user-role-service
-          uri: lb://system-service
-          predicates:
-            - Path=/api/roles/**
-          filters:
-            - StripPrefix=1
-        - id: user-admin-service
-          uri: lb://system-service
-          predicates:
-            - Path=/api/users/**
-          filters:
-            - StripPrefix=1
-        - id: video-service
-          uri: lb://video-service
-          predicates:
-            - Path=/api/videos/**
-          filters:
-            - StripPrefix=1
-        - id: content-service
-          uri: lb://content-service
-          predicates:
-            - Path=/api/categories/**
-          filters:
-            - StripPrefix=1
-        - id: interact-service
-          uri: lb://interact-service
-          predicates:
-            - Path=/api/comments/**
-          filters:
-            - StripPrefix=1
-        - id: message-service
-          uri: lb://message-service
-          predicates:
-            - Path=/api/messages/**
-          filters:
-            - StripPrefix=1
-        - id: search-service
-          uri: lb://search-service
-          predicates:
-            - Path=/api/search/**
-          filters:
-            - StripPrefix=1
-        - id: recommend-service
-          uri: lb://recommend-service
-          predicates:
-            - Path=/api/recommends/**
-          filters:
-            - StripPrefix=1
+      server:
+        webflux:
+          discovery:
+            locator:
+              enabled: true
+              lower-case-service-id: true
+          routes:
+            - id: auth-service
+              uri: lb://auth-service
+              predicates:
+                - Path=/api/auth/**
+              filters:
+                - StripPrefix=1
+            - id: user-menu-service
+              uri: lb://system-service
+              predicates:
+                - Path=/api/menus/**
+              filters:
+                - StripPrefix=1
+            - id: user-role-service
+              uri: lb://system-service
+              predicates:
+                - Path=/api/roles/**
+              filters:
+                - StripPrefix=1
+            - id: user-admin-service
+              uri: lb://system-service
+              predicates:
+                - Path=/api/users/**
+              filters:
+                - StripPrefix=1
+            - id: video-service
+              uri: lb://video-service
+              predicates:
+                - Path=/api/videos/**
+              filters:
+                - StripPrefix=1
+            - id: content-service
+              uri: lb://content-service
+              predicates:
+                # 分类、标签、推荐流配置、热搜榜、内容安全审核都归内容服务
+                # /api/hot-searches/** 和 search-service 的 /api/search/** 不重叠：后者只匹配以 /api/search/ 开头的路径
+                - Path=/api/categories/**,/api/tags/**,/api/feed-configs/**,/api/hot-searches/**,/api/security-audits/**
+              filters:
+                - StripPrefix=1
+            - id: interact-service
+              uri: lb://interact-service
+              predicates:
+                # 评论、点赞收藏分享、弹幕、播放计数都归互动服务
+                - Path=/api/comments/**,/api/actions/**,/api/danmaku/**,/api/play-counts/**
+              filters:
+                - StripPrefix=1
+            - id: message-service
+              uri: lb://message-service
+              predicates:
+                # 消息收件箱、私信会话、推送设备绑定都归消息服务
+                - Path=/api/messages/**,/api/conversations/**,/api/push-devices/**
+              filters:
+                - StripPrefix=1
+            - id: search-service
+              uri: lb://search-service
+              predicates:
+                # 搜索历史（/search/history）、词频统计（/search/stats）、建议词（/search/suggests）
+                # 三个控制器都挂在 /search 下，所以这一条就够了，不需要再加 /api/suggests/**
+                - Path=/api/search/**
+              filters:
+                - StripPrefix=1
+            - id: recommend-service
+              uri: lb://recommend-service
+              predicates:
+                # 推荐候选、算法配置、用户特征都归推荐服务
+                - Path=/api/recommends/**,/api/algo-configs/**,/api/user-features/**
+              filters:
+                - StripPrefix=1
+
     sentinel:
       transport:
-        dashboard: 127.0.0.1:8080
+        # Sentinel 控制台地址；容器内由 SENTINEL_DASHBOARD 覆盖为 sentinel-dashboard:8858
+        dashboard: ${SENTINEL_DASHBOARD:127.0.0.1:8858}
       eager: true
-  data:
-    redis:
-      host: 127.0.0.1
-      port: 6379
-      password: xiao123456
-      database: 0
 
+# JWT 签名配置
+# 生产环境务必用环境变量 JWT_SECRET 覆盖，密钥长度需 >= 32 字节
+jwt:
+  secret: ${JWT_SECRET:vidora-cloud-dev-only-secret-key-change-me-32bytes-min}
+  expire-seconds: 604800
+
+# Logging
 logging:
   level:
     root: info

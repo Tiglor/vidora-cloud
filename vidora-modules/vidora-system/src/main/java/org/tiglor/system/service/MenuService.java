@@ -1,7 +1,7 @@
 package org.tiglor.system.service;
 
-import com.baomidou.mybatisplus.extension.service.IService;
-import org.tiglor.system.entity.Menu;
+import com.baomidou.mybatisplus.spring.service.IService;
+import org.tiglor.common.user.entity.Menu;
 import org.tiglor.system.vo.MenuVO;
 
 import java.util.List;

@@ -8,7 +8,7 @@ import org.springframework.cloud.openfeign.EnableFeignClients;
 /**
  * 视频服务启动类
  */
-@SpringBootApplication(scanBasePackages = "org.tiglor.system")
+@SpringBootApplication(scanBasePackages = "org.tiglor")
 @EnableDiscoveryClient
 @EnableFeignClients(basePackages = "org.tiglor.video.client")
 public class VideoServiceApplication {

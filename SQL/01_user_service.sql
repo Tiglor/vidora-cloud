@@ -140,12 +140,40 @@ INSERT IGNORE INTO `sys_menu` (`id`, `parent_id`, `menu_name`, `menu_type`, `pat
 (15, 11, '删除菜单',   3, NULL,            NULL,                 NULL,      3, 'menu:delete',    0),
 (16, 11, '分配权限',   3, NULL,            NULL,                 NULL,      4, 'menu:assign',    0),
 -- 角色管理下的按钮权限（RoleController 的 @PreAuthorize 校验）
-(17, 10, '分配角色',   3, NULL,            NULL,                 NULL,      1, 'role:assign',    0);
+(17, 10, '分配角色',   3, NULL,            NULL,                 NULL,      1, 'role:assign',    0),
+-- 互动管理下的审核类按钮权限（CommentController / DanmakuController 的 @PreAuthorize 校验）
+-- 发评论、发弹幕、点赞只要登录即可，不占权限位；这里只管「能动别人内容」的操作
+(18, 5,  '评论审核',   3, NULL,            NULL,                 NULL,      3, 'comment:audit',  0),
+(19, 5,  '弹幕屏蔽',   3, NULL,            NULL,                 NULL,      4, 'danmaku:manage', 0),
+-- 站内通知下发（MessageController /messages/notify 的 @PreAuthorize 校验）
+-- 这个接口能往任何人收件箱里塞一条「系统」消息，绝不能对普通用户开放
+(20, 8,  '通知下发',   3, NULL,            NULL,                 NULL,      4, 'message:send',   0),
+-- 内容管理（content-service）：分类/标签是字典维护，流配置和热搜是运营位，安全审核是审核台
+-- 读取接口只要登录即可，不占权限位；这里五个权限位全是「能改」的操作
+(21, 0,  '内容管理',   1, '/content',      NULL,                 'tag',     4, NULL,             1),
+(22, 21, '分类管理',   3, NULL,            NULL,                 NULL,      1, 'content:category:manage', 0),
+(23, 21, '标签管理',   3, NULL,            NULL,                 NULL,      2, 'content:tag:manage',      0),
+(24, 21, '推荐流配置', 3, NULL,            NULL,                 NULL,      3, 'content:feed:manage',     0),
+(25, 21, '热搜运营',   3, NULL,            NULL,                 NULL,      4, 'content:hotsearch:manage', 0),
+(26, 21, '安全审核',   3, NULL,            NULL,                 NULL,      5, 'content:audit:manage',    0),
+-- 推荐管理（recommend-service）：日常读写和不可逆清理分开授权
+-- 算法任务的服务账号只需要 recommend:manage，不该顺手拿到清空候选表的能力
+(27, 0,  '推荐管理',   1, '/recommend',    NULL,                 'star',    5, NULL,             1),
+(28, 27, '推荐运维',   3, NULL,            NULL,                 NULL,      1, 'recommend:manage', 0),
+(29, 27, '推荐数据清理', 3, NULL,          NULL,                 NULL,      2, 'recommend:purge',  0),
+-- 搜索管理（search-service）：建议词是运营维护的字典，统计是原始词频
+-- 用户自己的搜索历史不占权限位，靠登录态 + user_id 过滤；联想框只要登录
+-- 统计连读都要权限：全站词频能反推出用户群体在找什么，包括站内没有的片源
+(30, 0,  '搜索管理',   1, '/search',       NULL,                 'search',  6, NULL,             1),
+(31, 30, '建议词管理', 3, NULL,            NULL,                 NULL,      1, 'search:suggest:manage', 0),
+(32, 30, '搜索统计',   3, NULL,            NULL,                 NULL,      2, 'search:stat:view',      0);
 
--- 管理员：全部菜单 + 全部按钮权限（含上述 menu:/role:/video: 接口级权限）
+-- 管理员：全部菜单 + 全部按钮权限（含上述 menu:/role:/video:/comment:/danmaku:/message:/content:/recommend:/search: 接口级权限）
 INSERT IGNORE INTO `sys_role_menu` (`role_id`, `menu_id`) VALUES
 (1,1),(1,2),(1,3),(1,4),(1,5),(1,6),(1,7),(1,8),(1,9),(1,10),(1,11),
-(1,12),(1,13),(1,14),(1,15),(1,16),(1,17);
+(1,12),(1,13),(1,14),(1,15),(1,16),(1,17),(1,18),(1,19),(1,20),
+(1,21),(1,22),(1,23),(1,24),(1,25),(1,26),(1,27),(1,28),(1,29),
+(1,30),(1,31),(1,32);
 
 -- 普通用户：视频列表 + 互动（不含删除类按钮、不含系统管理、不含管理端按钮）
 -- 注：当前 ROLE_USER 按设计仅"浏览+评论"；若需放开普通用户上传，把菜单ID 3(video:upload) 加入下方即可。

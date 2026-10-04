@@ -1,21 +1,25 @@
 package org.tiglor.system.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import org.tiglor.system.entity.Menu;
-import org.tiglor.system.entity.RoleMenu;
-import org.tiglor.system.entity.UserRole;
-import org.tiglor.system.mapper.MenuMapper;
-import org.tiglor.system.mapper.RoleMenuMapper;
-import org.tiglor.system.mapper.UserRoleMapper;
-import org.tiglor.system.service.MenuService;
-import org.tiglor.system.vo.MenuVO;
+import com.baomidou.mybatisplus.spring.service.impl.ServiceImpl;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.tiglor.common.redis.CacheNames;
+import org.tiglor.common.user.entity.Menu;
+import org.tiglor.common.user.entity.RoleMenu;
+import org.tiglor.common.user.entity.UserRole;
+import org.tiglor.common.user.mapper.MenuMapper;
+import org.tiglor.common.user.mapper.RoleMenuMapper;
+import org.tiglor.common.user.mapper.UserRoleMapper;
+import org.tiglor.system.service.MenuService;
+import org.tiglor.system.vo.MenuVO;
 
+import java.io.Serializable;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -23,6 +27,10 @@ import java.util.stream.Collectors;
 
 /**
  * 菜单与授权：用户 → 角色 → 菜单/权限
+ * <p>
+ * 菜单树是「每次页面加载都要查、但极少改动」的典型热数据，三个查询都走 Redis 缓存；
+ * 任何会改变结果的写入（菜单增删改、给角色重新授权）都要精确失效对应缓存。
+ * </p>
  */
 @Service
 @RequiredArgsConstructor
@@ -32,6 +40,7 @@ public class MenuServiceImpl extends ServiceImpl<MenuMapper, Menu> implements Me
     private final RoleMenuMapper roleMenuMapper;
 
     @Override
+    @Cacheable(cacheNames = CacheNames.MENU_USER_TREE, key = "#userId")
     public List<MenuVO> listMenusForUser(Long userId) {
         List<Long> roleIds = listRoleIdsByUser(userId);
         if (roleIds.isEmpty()) {
@@ -52,6 +61,7 @@ public class MenuServiceImpl extends ServiceImpl<MenuMapper, Menu> implements Me
     }
 
     @Override
+    @Cacheable(cacheNames = CacheNames.MENU_ALL_TREE, key = "'all'")
     public List<MenuVO> listAllTree() {
         List<Menu> menus = lambdaQuery()
                 .orderByAsc(Menu::getSortOrder)
@@ -60,16 +70,17 @@ public class MenuServiceImpl extends ServiceImpl<MenuMapper, Menu> implements Me
     }
 
     @Override
+    @Cacheable(cacheNames = CacheNames.MENU_ROLE_IDS, key = "#roleId")
     public List<Long> listMenuIdsByRoleId(Long roleId) {
-        return roleMenuMapper.selectList(new LambdaQueryWrapper<RoleMenu>()
-                        .eq(RoleMenu::getRoleId, roleId))
-                .stream()
-                .map(RoleMenu::getMenuId)
-                .distinct()
-                .toList();
+        return listMenuIdsByRoleIds(List.of(roleId));
     }
 
     @Override
+    @Caching(evict = {
+            @CacheEvict(cacheNames = CacheNames.MENU_ROLE_IDS, key = "#roleId"),
+            // 授权变更会影响所有持有该角色的用户，用户维度只能整体失效
+            @CacheEvict(cacheNames = CacheNames.MENU_USER_TREE, allEntries = true)
+    })
     @Transactional(rollbackFor = Exception.class)
     public void assignMenusToRole(Long roleId, List<Long> menuIds) {
         // 全量覆盖：先删后插
@@ -78,18 +89,33 @@ public class MenuServiceImpl extends ServiceImpl<MenuMapper, Menu> implements Me
             return;
         }
         LocalDateTime now = LocalDateTime.now();
-        List<RoleMenu> list = new ArrayList<>();
         for (Long menuId : menuIds) {
             RoleMenu rm = new RoleMenu();
             rm.setRoleId(roleId);
             rm.setMenuId(menuId);
             rm.setCreateTime(now);
-            list.add(rm);
-        }
-        // 批量插入
-        for (RoleMenu rm : list) {
             roleMenuMapper.insert(rm);
         }
+    }
+
+    // ---------- 菜单自身的增删改：全量树与所有用户树都失效 ----------
+
+    @Override
+    @CacheEvict(cacheNames = {CacheNames.MENU_ALL_TREE, CacheNames.MENU_USER_TREE}, allEntries = true)
+    public boolean save(Menu entity) {
+        return super.save(entity);
+    }
+
+    @Override
+    @CacheEvict(cacheNames = {CacheNames.MENU_ALL_TREE, CacheNames.MENU_USER_TREE}, allEntries = true)
+    public boolean updateById(Menu entity) {
+        return super.updateById(entity);
+    }
+
+    @Override
+    @CacheEvict(cacheNames = {CacheNames.MENU_ALL_TREE, CacheNames.MENU_USER_TREE}, allEntries = true)
+    public boolean removeById(Serializable id) {
+        return super.removeById(id);
     }
 
     // ---------- 内部工具 ----------
@@ -104,6 +130,9 @@ public class MenuServiceImpl extends ServiceImpl<MenuMapper, Menu> implements Me
     }
 
     private List<Long> listMenuIdsByRoleIds(List<Long> roleIds) {
+        if (roleIds.isEmpty()) {
+            return List.of();
+        }
         return roleMenuMapper.selectList(new LambdaQueryWrapper<RoleMenu>()
                         .in(RoleMenu::getRoleId, roleIds))
                 .stream()

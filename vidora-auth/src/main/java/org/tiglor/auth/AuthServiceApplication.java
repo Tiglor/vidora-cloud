@@ -5,7 +5,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 
 /** 统一身份认证服务启动类。 */
-@SpringBootApplication(scanBasePackages = "org.tiglor.system")
+@SpringBootApplication(scanBasePackages = "org.tiglor")
 @EnableDiscoveryClient
 public class AuthServiceApplication {
 

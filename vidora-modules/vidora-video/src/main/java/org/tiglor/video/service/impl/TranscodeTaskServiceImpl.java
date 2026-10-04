@@ -1,6 +1,6 @@
 package org.tiglor.video.service.impl;
 
-import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.baomidou.mybatisplus.spring.service.impl.ServiceImpl;
 import org.tiglor.video.entity.TranscodeTask;
 import org.tiglor.video.mapper.TranscodeTaskMapper;
 import org.tiglor.video.service.TranscodeTaskService;

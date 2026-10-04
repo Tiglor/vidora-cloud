@@ -2,11 +2,13 @@ package org.tiglor.system.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.tiglor.common.core.ApiResult;
-import org.tiglor.system.entity.Role;
-import org.tiglor.system.entity.UserRole;
-import org.tiglor.system.mapper.RoleMapper;
-import org.tiglor.system.mapper.UserRoleMapper;
+import org.tiglor.common.redis.CacheNames;
+import org.tiglor.common.user.entity.Role;
+import org.tiglor.common.user.entity.UserRole;
+import org.tiglor.common.user.mapper.RoleMapper;
+import org.tiglor.common.user.mapper.UserRoleMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
@@ -44,6 +46,8 @@ public class RoleController {
     @PostMapping("/user/{userId}")
     @PreAuthorize("hasAuthority('role:assign')")
     @Transactional(rollbackFor = Exception.class)
+    // 角色变了菜单权限就变了，必须让该用户已缓存的菜单树失效
+    @CacheEvict(cacheNames = CacheNames.MENU_USER_TREE, key = "#userId")
     public ApiResult<Boolean> assignToUser(@PathVariable Long userId, @RequestBody List<Long> roleIds) {
         userRoleMapper.delete(new LambdaQueryWrapper<UserRole>().eq(UserRole::getUserId, userId));
         if (roleIds != null) {

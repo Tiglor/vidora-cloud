@@ -14,7 +14,7 @@
 | 后端运行时 | JDK | **25 LTS**（25.0.4.1） | BellSoft JDK 25 |
 | 后端框架 | Spring Boot | **4.0.7** | Spring Framework 7.0 |
 | 微服务体系 | Spring Cloud Alibaba | **2025.1.0.0** | 底层 Spring Cloud 2025.1.3（Oakwood），对应 Boot 4.0.x |
-| 注册/配置中心 | Nacos client | **3.2.4** | SCA 默认 3.1.1，已在父 POM 显式覆盖（全家桶 5 构件钉死） |
+| 注册中心（配置中心暂未接入） | Nacos client | **3.2.4** | SCA 默认 3.1.1，已在父 POM 显式覆盖（全家桶 5 构件钉死） |
 | ORM | MyBatis-Plus | **3.5.14** + `mybatis-plus-jsqlparser` + `mybatis-spring 4.0.0` | Boot 4 需 mybatis-spring 4.x |
 | 接口文档 | SpringDoc OpenAPI | **3.1.0** | Boot 4 对应 springdoc 3.x |
 | 对象存储 | MinIO / 本地磁盘 | SDK **8.5.17** | 视频文件上传/存储，可切换 |
@@ -125,8 +125,9 @@ $env:JAVA_HOME = 'D:\Java\otherJDK\bellsoft-jdk25.0.4.1+1-windows-amd64\jdk-25.0
 & 'D:\apache-maven-3.9.6\bin\mvn.cmd' -f 'pom.xml' -pl vidora-gateway,vidora-auth,vidora-modules/vidora-system,vidora-modules/vidora-video spring-boot:run -o
 ```
 
-Nacos **不是强依赖**：各服务 `spring.config.import` 使用了 `optional:nacos:`，
-本地没起 Nacos 也能正常启动（仅告警）。需要服务发现和动态配置时再启动 Nacos 3.2.4。
+Nacos 当前**只做服务注册与发现**，没有接配置中心：每个服务的配置都在自己那一个 `src/main/resources/application.yml` 里。
+本地没起 Nacos 各服务仍能启动（注册失败只告警），但网关的 `lb://xxx-service` 解析不到实例、请求会 503。
+配置中心的重新启用步骤见 `docs/ARCHITECTURE.md` 6.2。
 
 ### 3. 前端对接
 

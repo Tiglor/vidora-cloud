@@ -15,6 +15,10 @@ CREATE TABLE IF NOT EXISTS `content_category` (
     `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`id`),
+    -- 同一父分类下名字不许重复。两列都是 NOT NULL：MySQL 的唯一索引把 NULL 当作互不相同的值，
+    -- parent_id 要是可空，这个约束对「顶级分类」就形同虚设。
+    -- utf8mb4_unicode_ci 让重名判断天然不区分大小写，服务层的预检查用 SQL = 而不是 Java 比较，语义才对得上。
+    UNIQUE KEY `uk_parent_name` (`parent_id`, `name`),
     KEY `idx_parent_id` (`parent_id`),
     KEY `idx_status_sort` (`status`, `sort_order`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='视频分类表';
@@ -67,7 +71,8 @@ CREATE TABLE IF NOT EXISTS `content_security_audit` (
     `risk_level` TINYINT NOT NULL DEFAULT 0 COMMENT '风险等级：0-无 1-低 2-中 3-高',
     `risk_label` VARCHAR(100) DEFAULT NULL COMMENT '风险标签',
     `machine_result` JSON DEFAULT NULL COMMENT '机审结果',
-    `manual_result` TINYINT DEFAULT NULL COMMENT '人工复核：0-未复核 1-放行 2-拦截',
+    -- 未复核用 NULL 表示，不是 0：0 在 TINYINT 里既不是放行也不是拦截，会被误读成第三种状态
+    `manual_result` TINYINT DEFAULT NULL COMMENT '人工复核：NULL-未复核 1-放行 2-拦截',
     `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_target` (`target_type`, `target_id`),

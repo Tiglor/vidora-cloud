@@ -4,28 +4,29 @@ server:
 spring:
   application:
     name: auth-service
-  config:
-    import:
-      - optional:nacos:${spring.application.name}.yml
+
+  # Datasource
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://127.0.0.1:3306/user_service?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+    username: ${SPRING_DATASOURCE_USERNAME:root}
+    password: ${SPRING_DATASOURCE_PASSWORD:123456}
+
+  # Redis
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:127.0.0.1}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      password: ${SPRING_DATA_REDIS_PASSWORD:xiao123456}
+      database: 0
+
+  # Nacos：当前只用服务注册与发现，配置中心暂缓（重新启用步骤见 docs/ARCHITECTURE.md 6.2）
   cloud:
     nacos:
       discovery:
         server-addr: 127.0.0.1:8848
-      config:
-        server-addr: 127.0.0.1:8848
-        file-extension: yml
-  datasource:
-    driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://127.0.0.1:3306/user_service?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
-    username: root
-    password: 123456
-  data:
-    redis:
-      host: 127.0.0.1
-      port: 6379
-      password: xiao123456
-      database: 0
 
+# MyBatis-Plus
 mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true
@@ -37,6 +38,14 @@ mybatis-plus:
       logic-delete-value: 1
   mapper-locations: classpath*:/mapper/*.xml
 
+# JWT 签名配置
+# 生产环境务必用环境变量 JWT_SECRET 覆盖，密钥长度需 >= 32 字节
+# 必须与 vidora-gateway 保持一致，否则网关验签失败
+jwt:
+  secret: ${JWT_SECRET:vidora-cloud-dev-only-secret-key-change-me-32bytes-min}
+  expire-seconds: 604800
+
+# SpringDoc OpenAPI
 springdoc:
   api-docs:
     enabled: true
@@ -45,6 +54,7 @@ springdoc:
     path: /swagger-ui.html
     enabled: true
 
+# Logging
 logging:
   level:
     root: info

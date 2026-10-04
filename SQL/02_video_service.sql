@@ -34,7 +34,9 @@ CREATE TABLE IF NOT EXISTS `video_info` (
     `is_deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除',
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_video_key` (`video_key`),
-    UNIQUE KEY `uk_file_hash` (`file_hash`),
+    -- 不能对 file_hash 建唯一索引：秒传复用的是存储层 blob，不是视频记录。
+    -- 同一文件被不同用户（或同一用户多次）投稿是合法的，各自要有独立的 video_info 行。
+    KEY `idx_file_hash` (`file_hash`),
     KEY `idx_user_id` (`user_id`),
     KEY `idx_status_publish` (`status`, `publish_time`),
     KEY `idx_category_id` (`category_id`),
@@ -62,13 +64,15 @@ CREATE TABLE IF NOT EXISTS `video_transcode_task` (
     KEY `idx_video_id` (`video_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='视频转码任务表';
 
--- 视频分片上传记录表（断点续传）
+-- 视频分片上传记录表（断点续传 + MD5 秒传）
 CREATE TABLE IF NOT EXISTS `video_multipart_upload` (
     `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '上传ID',
     `upload_id` VARCHAR(64) NOT NULL COMMENT '上传任务ID',
+    `user_id` BIGINT UNSIGNED NOT NULL COMMENT '发起上传的用户ID',
     `video_id` BIGINT UNSIGNED DEFAULT NULL COMMENT '关联视频ID',
     `file_name` VARCHAR(200) NOT NULL COMMENT '原始文件名',
     `file_hash` VARCHAR(64) NOT NULL COMMENT '文件MD5',
+    `file_size` BIGINT UNSIGNED NOT NULL COMMENT '文件总字节数',
     `chunk_size` INT NOT NULL COMMENT '分片大小',
     `total_chunks` INT NOT NULL COMMENT '总分片数',
     `completed_chunks` INT NOT NULL DEFAULT 0 COMMENT '已完成分片数',
@@ -79,7 +83,9 @@ CREATE TABLE IF NOT EXISTS `video_multipart_upload` (
     `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_upload_id` (`upload_id`),
-    UNIQUE KEY `uk_file_hash` (`file_hash`),
+    -- 一次上传尝试一行，不是「一个用户一个文件一行」：同一文件再投一次要能开新会话、建新视频。
+    -- 断点续传只是从这个索引里挑最近一条未合并的会话继续传，跨用户越权由代码校验 user_id 拦截
+    KEY `idx_user_hash` (`user_id`, `file_hash`),
     KEY `idx_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='视频分片上传记录表';
 

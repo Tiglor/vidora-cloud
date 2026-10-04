@@ -2,17 +2,19 @@
 #
 # 使用步骤（依赖离线缓存于 F:\repository）：
 #   1) 在本机用 Maven 打包所有可运行服务（产出各模块 target/*.jar）
-#      & 'D:\apache-maven-3.9.6\bin\mvn.cmd' -f pom.xml -pl gateway,auth,modules/system,modules/video,modules/content,modules/interact,modules/message,modules/search,modules/recommend -am package -DskipTests -o
-#   2) 初始化数据库（在 mysql 容器起来后执行，或直接挂载 SQL/ 初始化）
-#      mysql -h 127.0.0.1 -P 3306 -u root -p video_platform < SQL/01_user_service.sql ...
-#   3) 构建镜像并启动
+#      & 'D:\apache-maven-3.9.6\bin\mvn.cmd' -f pom.xml -pl vidora-gateway,vidora-auth,vidora-modules/vidora-system,vidora-modules/vidora-video,vidora-modules/vidora-content,vidora-modules/vidora-interact,vidora-modules/vidora-message,vidora-modules/vidora-search,vidora-modules/vidora-recommend -am package -DskipTests -o
+#   2) 复制 deploy/.env.example 为 deploy/.env，并把其中的 change-me 口令全部改掉
+#   3) 构建镜像并启动（MySQL 首次启动会自动执行 ../SQL/*.sql 建库建表）
 #      docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
 #
 # 说明：
-#   - 各微服务通过 Nacos(nacos:8848) 做服务发现；application.yml 使用 optional:nacos:，
-#     即使 Nacos 未就绪也能先以本地配置启动（仅告警）。
+#   - SQL/ 下 7 个脚本各自 CREATE DATABASE，对应 7 个独立库：
+#     user_service(auth+system 共用) / video_service / content_service /
+#     interact_service / message_service / search_service / recommend_service
+#   - 各微服务通过 Nacos(nacos:8848) **只做服务注册与发现**；配置中心暂未接入，
+#     所有配置都在各服务自己的 application.yml 里（重新启用配置中心的步骤见 docs/ARCHITECTURE.md 6.2）。
+#     Nacos 未就绪时服务仍能启动，只是注册不上、网关找不到下游。
 #   - 服务间调用走服务名（nacos 注册），网关对外的统一入口为 8080。
-#   - 数据库/Redis/MinIO 主机名已通过环境变量注入（见下方 environment）。
 
 networks:
   vidora-net:
@@ -23,6 +25,29 @@ volumes:
   redis-data:
   nacos-logs:
   minio-data:
+  rocketmq-store:
+  sentinel-logs:
+
+# 所有微服务共用的环境变量（基础设施主机名 + 数据库账号）
+x-app-env: &app-env
+  TZ: ${TZ}
+  JAVA_OPTS: ${JAVA_OPTS}
+  SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: nacos:8848
+  SPRING_CLOUD_SENTINEL_TRANSPORT_DASHBOARD: sentinel-dashboard:8858
+  SPRING_DATA_REDIS_HOST: redis
+  SPRING_DATA_REDIS_PORT: "6379"
+  SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD}
+  SPRING_DATASOURCE_USERNAME: root
+  SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+
+# 等待 MySQL / Redis / Nacos 就绪后再启动业务服务
+x-app-depends: &app-depends
+  mysql:
+    condition: service_healthy
+  redis:
+    condition: service_started
+  nacos:
+    condition: service_started
 
 services:
   # ---------------- 基础设施 ----------------
@@ -32,12 +57,13 @@ services:
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_DATABASE: ${MYSQL_DATABASE}
       TZ: ${TZ}
     ports:
       - "3306:3306"
     volumes:
       - mysql-data:/var/lib/mysql
+      # 首次初始化时按文件名顺序执行 01~07 建库建表脚本
+      - ../SQL:/docker-entrypoint-initdb.d:ro
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     networks: [vidora-net]
     healthcheck:
@@ -85,10 +111,45 @@ services:
       - minio-data:/data
     networks: [vidora-net]
 
+  sentinel-dashboard:
+    image: bladex/sentinel-dashboard:${SENTINEL_VERSION}
+    container_name: vidora-sentinel
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ}
+    ports:
+      - "8858:8858"
+    networks: [vidora-net]
+
+  rocketmq-namesrv:
+    image: apache/rocketmq:${ROCKETMQ_VERSION}
+    container_name: vidora-rocketmq-namesrv
+    restart: unless-stopped
+    command: sh mqnamesrv
+    ports:
+      - "9876:9876"
+    networks: [vidora-net]
+
+  rocketmq-broker:
+    image: apache/rocketmq:${ROCKETMQ_VERSION}
+    container_name: vidora-rocketmq-broker
+    restart: unless-stopped
+    command: sh mqbroker -n rocketmq-namesrv:9876 -c /home/rocketmq/broker.conf
+    environment:
+      JAVA_OPT_EXT: -Xms512m -Xmx512m -Xmn256m
+    ports:
+      - "10909:10909"
+      - "10911:10911"
+    volumes:
+      - ./rocketmq/broker.conf:/home/rocketmq/broker.conf:ro
+      - rocketmq-store:/home/rocketmq/store
+    depends_on: [rocketmq-namesrv]
+    networks: [vidora-net]
+
   # ---------------- 微服务（一一对应） ----------------
   gateway-service:
     build:
-      context: ../gateway
+      context: ../vidora-gateway
       dockerfile: Dockerfile
     image: ${IMAGE_PREFIX}/gateway-service:${IMAGE_TAG}
     container_name: vidora-gateway
@@ -96,16 +157,15 @@ services:
     ports:
       - "8080:8080"
     environment:
-      TZ: ${TZ}
-      JAVA_OPTS: ${JAVA_OPTS}
-      SPRING_CLOUD_NACOS_DISCOVERY_SERVER-ADDR: nacos:8848
-      SPRING_CLOUD_NACOS_CONFIG_SERVER-ADDR: nacos:8848
+      <<: *app-env
+      # 必须与 auth-service 一致，否则网关验签失败
+      JWT_SECRET: ${JWT_SECRET}
     depends_on: [nacos]
     networks: [vidora-net]
 
   auth-service:
     build:
-      context: ../auth
+      context: ../vidora-auth
       dockerfile: Dockerfile
     image: ${IMAGE_PREFIX}/auth-service:${IMAGE_TAG}
     container_name: vidora-auth
@@ -113,22 +173,15 @@ services:
     ports:
       - "8101:8101"
     environment:
-      TZ: ${TZ}
-      JAVA_OPTS: ${JAVA_OPTS}
-      SPRING_CLOUD_NACOS_DISCOVERY_SERVER-ADDR: nacos:8848
-      SPRING_CLOUD_NACOS_CONFIG_SERVER-ADDR: nacos:8848
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/video_platform?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
-      SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      SPRING_DATA_REDIS_HOST: redis
-      SPRING_DATA_REDIS_PORT: "6379"
-      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD}
-    depends_on: [mysql, redis, nacos]
+      <<: *app-env
+      JWT_SECRET: ${JWT_SECRET}
+      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/user_service?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false"
+    depends_on: *app-depends
     networks: [vidora-net]
 
   system-service:
     build:
-      context: ../vidora-modules/system
+      context: ../vidora-modules/vidora-system
       dockerfile: Dockerfile
     image: ${IMAGE_PREFIX}/system-service:${IMAGE_TAG}
     container_name: vidora-system
@@ -136,22 +189,15 @@ services:
     ports:
       - "8108:8108"
     environment:
-      TZ: ${TZ}
-      JAVA_OPTS: ${JAVA_OPTS}
-      SPRING_CLOUD_NACOS_DISCOVERY_SERVER-ADDR: nacos:8848
-      SPRING_CLOUD_NACOS_CONFIG_SERVER-ADDR: nacos:8848
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/video_platform?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
-      SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      SPRING_DATA_REDIS_HOST: redis
-      SPRING_DATA_REDIS_PORT: "6379"
-      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD}
-    depends_on: [mysql, redis, nacos]
+      <<: *app-env
+      # 与 auth-service 共用同一套 RBAC 库
+      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/user_service?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false"
+    depends_on: *app-depends
     networks: [vidora-net]
 
   video-service:
     build:
-      context: ../vidora-modules/video
+      context: ../vidora-modules/vidora-video
       dockerfile: Dockerfile
     image: ${IMAGE_PREFIX}/video-service:${IMAGE_TAG}
     container_name: vidora-video
@@ -159,31 +205,38 @@ services:
     ports:
       - "8102:8102"
     environment:
-      TZ: ${TZ}
-      JAVA_OPTS: ${JAVA_OPTS}
-      SPRING_CLOUD_NACOS_DISCOVERY_SERVER-ADDR: nacos:8848
-      SPRING_CLOUD_NACOS_CONFIG_SERVER-ADDR: nacos:8848
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/video_platform?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
-      SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      SPRING_DATA_REDIS_HOST: redis
-      SPRING_DATA_REDIS_PORT: "6379"
-      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD}
+      <<: *app-env
+      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/video_service?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false"
       # 存储（minio 或 local）。使用 minio 时指向容器名 minio:9000
       STORAGE_TYPE: minio
       STORAGE_ENDPOINT: http://minio:9000
-      STORAGE_ACCESSKEY: ${MINIO_ROOT_USER}
-      STORAGE_SECRETKEY: ${MINIO_ROOT_PASSWORD}
+      STORAGE_ACCESS_KEY: ${MINIO_ROOT_USER}
+      STORAGE_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       STORAGE_BUCKET: ${MINIO_BUCKET}
-      # FFmpeg：默认使用容器内 ffmpeg；若镜像不含 ffmpeg，请改用带 ffmpeg 的基础镜像或挂载宿主 ffmpeg
-      FFMPEG_FFMPEG-PATH: ffmpeg
-      FFMPEG_FFPROBE-PATH: ffprobe
-    depends_on: [mysql, redis, nacos, minio]
+      # 镜像内已通过 apt 安装 ffmpeg / ffprobe
+      FFMPEG_FFMPEG_PATH: ffmpeg
+      FFMPEG_FFPROBE_PATH: ffprobe
+      # 打开 MQ 投递（应用侧默认 false，此时转码只走本地线程池、重启会丢在途任务）
+      ROCKETMQ_ENABLED: "true"
+      ROCKETMQ_NAME_SERVER: rocketmq-namesrv:9876
+    # service_started 不代表 broker 已可接受连接：Producer 启动失败会让容器退出，
+    # 由 restart: unless-stopped 重试到 broker 就绪为止，启动初期看到几次重启属正常现象
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      nacos:
+        condition: service_started
+      minio:
+        condition: service_started
+      rocketmq-broker:
+        condition: service_started
     networks: [vidora-net]
 
   content-service:
     build:
-      context: ../vidora-modules/content
+      context: ../vidora-modules/vidora-content
       dockerfile: Dockerfile
     image: ${IMAGE_PREFIX}/content-service:${IMAGE_TAG}
     container_name: vidora-content
@@ -191,22 +244,14 @@ services:
     ports:
       - "8103:8103"
     environment:
-      TZ: ${TZ}
-      JAVA_OPTS: ${JAVA_OPTS}
-      SPRING_CLOUD_NACOS_DISCOVERY_SERVER-ADDR: nacos:8848
-      SPRING_CLOUD_NACOS_CONFIG_SERVER-ADDR: nacos:8848
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/video_platform?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
-      SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      SPRING_DATA_REDIS_HOST: redis
-      SPRING_DATA_REDIS_PORT: "6379"
-      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD}
-    depends_on: [mysql, redis, nacos]
+      <<: *app-env
+      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/content_service?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false"
+    depends_on: *app-depends
     networks: [vidora-net]
 
   interact-service:
     build:
-      context: ../vidora-modules/interact
+      context: ../vidora-modules/vidora-interact
       dockerfile: Dockerfile
     image: ${IMAGE_PREFIX}/interact-service:${IMAGE_TAG}
     container_name: vidora-interact
@@ -214,22 +259,15 @@ services:
     ports:
       - "8104:8104"
     environment:
-      TZ: ${TZ}
-      JAVA_OPTS: ${JAVA_OPTS}
-      SPRING_CLOUD_NACOS_DISCOVERY_SERVER-ADDR: nacos:8848
-      SPRING_CLOUD_NACOS_CONFIG_SERVER-ADDR: nacos:8848
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/video_platform?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
-      SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      SPRING_DATA_REDIS_HOST: redis
-      SPRING_DATA_REDIS_PORT: "6379"
-      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD}
-    depends_on: [mysql, redis, nacos]
+      <<: *app-env
+      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/interact_service?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false"
+      ROCKETMQ_NAME_SERVER: rocketmq-namesrv:9876
+    depends_on: *app-depends
     networks: [vidora-net]
 
   message-service:
     build:
-      context: ../vidora-modules/message
+      context: ../vidora-modules/vidora-message
       dockerfile: Dockerfile
     image: ${IMAGE_PREFIX}/message-service:${IMAGE_TAG}
     container_name: vidora-message
@@ -237,22 +275,15 @@ services:
     ports:
       - "8105:8105"
     environment:
-      TZ: ${TZ}
-      JAVA_OPTS: ${JAVA_OPTS}
-      SPRING_CLOUD_NACOS_DISCOVERY_SERVER-ADDR: nacos:8848
-      SPRING_CLOUD_NACOS_CONFIG_SERVER-ADDR: nacos:8848
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/video_platform?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
-      SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      SPRING_DATA_REDIS_HOST: redis
-      SPRING_DATA_REDIS_PORT: "6379"
-      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD}
-    depends_on: [mysql, redis, nacos]
+      <<: *app-env
+      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/message_service?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false"
+      ROCKETMQ_NAME_SERVER: rocketmq-namesrv:9876
+    depends_on: *app-depends
     networks: [vidora-net]
 
   search-service:
     build:
-      context: ../vidora-modules/search
+      context: ../vidora-modules/vidora-search
       dockerfile: Dockerfile
     image: ${IMAGE_PREFIX}/search-service:${IMAGE_TAG}
     container_name: vidora-search
@@ -260,22 +291,14 @@ services:
     ports:
       - "8106:8106"
     environment:
-      TZ: ${TZ}
-      JAVA_OPTS: ${JAVA_OPTS}
-      SPRING_CLOUD_NACOS_DISCOVERY_SERVER-ADDR: nacos:8848
-      SPRING_CLOUD_NACOS_CONFIG_SERVER-ADDR: nacos:8848
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/video_platform?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
-      SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      SPRING_DATA_REDIS_HOST: redis
-      SPRING_DATA_REDIS_PORT: "6379"
-      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD}
-    depends_on: [mysql, redis, nacos]
+      <<: *app-env
+      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/search_service?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false"
+    depends_on: *app-depends
     networks: [vidora-net]
 
   recommend-service:
     build:
-      context: ../vidora-modules/recommend
+      context: ../vidora-modules/vidora-recommend
       dockerfile: Dockerfile
     image: ${IMAGE_PREFIX}/recommend-service:${IMAGE_TAG}
     container_name: vidora-recommend
@@ -283,15 +306,8 @@ services:
     ports:
       - "8107:8107"
     environment:
-      TZ: ${TZ}
-      JAVA_OPTS: ${JAVA_OPTS}
-      SPRING_CLOUD_NACOS_DISCOVERY_SERVER-ADDR: nacos:8848
-      SPRING_CLOUD_NACOS_CONFIG_SERVER-ADDR: nacos:8848
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/video_platform?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
-      SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      SPRING_DATA_REDIS_HOST: redis
-      SPRING_DATA_REDIS_PORT: "6379"
-      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD}
-    depends_on: [mysql, redis, nacos]
+      <<: *app-env
+      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/recommend_service?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false"
+      ROCKETMQ_NAME_SERVER: rocketmq-namesrv:9876
+    depends_on: *app-depends
     networks: [vidora-net]
