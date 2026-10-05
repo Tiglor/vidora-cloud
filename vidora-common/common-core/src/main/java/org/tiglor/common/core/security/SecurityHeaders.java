@@ -18,4 +18,8 @@ public final class SecurityHeaders {
     public static final String ROLES = "X-User-Roles";
     /** 权限标识，逗号分隔，如 video:upload,comment:list */
     public static final String PERMISSIONS = "X-User-Permissions";
+    /** 客户端ID */
+    public static final String CLIENT_ID = "X-Client-Id";
+    /** 客户端标识: web/mobile/admin */
+    public static final String CLIENT_KEY = "X-Client-Key";
 }

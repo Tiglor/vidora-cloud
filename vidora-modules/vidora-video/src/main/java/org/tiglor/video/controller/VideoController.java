@@ -1,11 +1,17 @@
 package org.tiglor.video.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import java.util.List;
+import java.util.Objects;
+import org.tiglor.api.system.dto.RemoteUserDTO;
 import org.tiglor.common.core.ApiResult;
+import org.tiglor.common.log.annotation.BusinessType;
+import org.tiglor.common.log.annotation.OperLog;
+import org.tiglor.common.core.BizException;
+import org.tiglor.common.core.ResultCode;
 import org.tiglor.common.core.security.UserContext;
 import org.tiglor.video.config.TranscodeProperties;
 import org.tiglor.video.client.SystemUserClient;
-import org.tiglor.video.client.dto.RemoteUserDTO;
 import org.tiglor.video.entity.TranscodeTask;
 import org.tiglor.video.entity.VideoInfo;
 import org.tiglor.video.service.TranscodeService;
@@ -39,9 +45,34 @@ public class VideoController {
         return ApiResult.ok(videoInfoService.listMyVideos(UserContext.getUserId(), current, size));
     }
 
+    /**
+     * 视频详情。不存在（或 id 写错）时报 404，而不是 {@code code:200 + data:null}：
+     * 前端拿到的类型是非空实体，null 会让详情页渲染函数直接抛 TypeError，
+     * 监控里这也是一次「成功」，永远发现不了。
+     */
     @GetMapping("/{id}")
     public ApiResult<VideoInfo> detail(@PathVariable Long id) {
-        return ApiResult.ok(videoInfoService.getById(id));
+        VideoInfo video = videoInfoService.getById(id);
+        if (video == null) {
+            throw new BizException(ResultCode.NOT_FOUND, "视频不存在");
+        }
+        return ApiResult.ok(video);
+    }
+
+    /**
+     * 按 id 批量取视频，供调用方补全展示字段（如「我的收藏」列表：
+     * interact 服务只存 targetId，视频标题封面在 video 库里）。
+     *
+     * @return 只含存在的 id，顺序不保证；已删除的视频静默跳过，调用方按 id 自行对齐
+     */
+    @PostMapping("/batch")
+    public ApiResult<List<VideoInfo>> batch(@RequestBody List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return ApiResult.ok(List.of());
+        }
+        // 上限夹住：一次列表页最多 20 条，给 50 足够，再多就是被人拿来拖全库了
+        List<Long> limited = ids.stream().filter(Objects::nonNull).distinct().limit(50).toList();
+        return ApiResult.ok(videoInfoService.listByIds(limited));
     }
 
     /**
@@ -52,7 +83,7 @@ public class VideoController {
     public ApiResult<RemoteUserDTO> owner(@PathVariable Long id) {
         VideoInfo video = videoInfoService.getById(id);
         if (video == null || video.getUserId() == null) {
-            return ApiResult.error(404, "视频或投稿用户不存在");
+            throw new BizException(ResultCode.NOT_FOUND, "视频或投稿用户不存在");
         }
         return systemUserClient.getById(video.getUserId());
     }
@@ -80,6 +111,7 @@ public class VideoController {
      */
     @PostMapping("/{id}/transcode")
     @PreAuthorize("hasAuthority('video:transcode')")
+    @OperLog(title = "视频管理", type = BusinessType.UPDATE)
     public ApiResult<String> transcode(@PathVariable Long id) {
         return ApiResult.ok(transcodeService.submit(id).getId().toString());
     }

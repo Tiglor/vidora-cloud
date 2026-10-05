@@ -118,6 +118,18 @@ public class CommentServiceImpl extends ServiceImpl<CommentMapper, Comment> impl
     }
 
     @Override
+    public Page<CommentView> pageForAdmin(String keyword, Integer status, long current, long size) {
+        String fuzzy = keyword == null || keyword.isBlank() ? null : keyword.trim();
+        Page<Comment> page = lambdaQuery()
+                .like(fuzzy != null, Comment::getContent, fuzzy)
+                .eq(status != null, Comment::getStatus, status)
+                .orderByDesc(Comment::getId)
+                .page(newPage(current, size));
+        // 不预取回复：后台列表里一行本身可能就是回复，给它挂 replies 没有意义
+        return toViewPage(page, false);
+    }
+
+    @Override
     public void delete(Long commentId, Long userId, boolean moderator) {
         requireUserId(userId);
         Comment comment = getById(commentId);
@@ -226,6 +238,7 @@ public class CommentServiceImpl extends ServiceImpl<CommentMapper, Comment> impl
         view.setContent(comment.getContent());
         view.setLikeCount(comment.getLikeCount());
         view.setReplyCount(comment.getReplyCount());
+        view.setStatus(comment.getStatus());
         view.setCreateTime(comment.getCreateTime());
         return view;
     }

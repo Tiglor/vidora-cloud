@@ -13,6 +13,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.tiglor.common.core.ApiResult;
+import org.tiglor.common.log.annotation.BusinessType;
+import org.tiglor.common.log.annotation.OperLog;
 import org.tiglor.content.dto.HotSearchRequest;
 import org.tiglor.content.entity.HotSearch;
 import org.tiglor.content.service.HotSearchService;
@@ -41,9 +43,25 @@ public class HotSearchController {
         return ApiResult.ok(service.board(date == null ? LocalDate.now() : date));
     }
 
+    /**
+     * 管理端看板：某天全部词条，含已下线的。
+     * <p>
+     * 网关把 {@code /api/hot-searches/} 整个前缀锁在 clientKey=admin，这条又不在匿名 GET 清单里，
+     * 所以它不像 {@code GET /hot-searches} 那样对访客开放。
+     * </p>
+     */
+    @GetMapping("/admin/list")
+    @PreAuthorize("hasAuthority('content:hotsearch:manage')")
+    public ApiResult<List<HotSearch>> adminList(@RequestParam(required = false)
+                                                @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+                                                @RequestParam(required = false) Integer status) {
+        return ApiResult.ok(service.adminBoard(date == null ? LocalDate.now() : date, status));
+    }
+
     /** 加词或刷新热度。rank 由服务端算，请求体里传了也不认 */
     @PostMapping
     @PreAuthorize("hasAuthority('content:hotsearch:manage')")
+    @OperLog(title = "热搜管理", type = BusinessType.INSERT)
     public ApiResult<HotSearch> upsert(@Valid @RequestBody HotSearchRequest request) {
         return ApiResult.ok(service.upsert(request));
     }
@@ -51,6 +69,7 @@ public class HotSearchController {
     /** 按当前热度重排某天榜单，返回真正被改动的行数 */
     @PostMapping("/rebuild")
     @PreAuthorize("hasAuthority('content:hotsearch:manage')")
+    @OperLog(title = "热搜管理", type = BusinessType.UPDATE)
     public ApiResult<Integer> rebuild(@RequestParam(required = false)
                                       @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         return ApiResult.ok(service.rebuild(date == null ? LocalDate.now() : date));
@@ -59,6 +78,7 @@ public class HotSearchController {
     /** 上线(1) / 下线(0)，下线敏感词走这里 */
     @PutMapping("/{id}/status")
     @PreAuthorize("hasAuthority('content:hotsearch:manage')")
+    @OperLog(title = "热搜管理", type = BusinessType.CHANGE_STATUS)
     public ApiResult<Void> setStatus(@PathVariable Long id, @RequestParam int status) {
         service.setStatus(id, status);
         return ApiResult.ok();

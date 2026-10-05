@@ -30,7 +30,6 @@ spring:
 mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
   global-config:
     db-config:
       logic-delete-field: isDeleted
@@ -47,7 +46,20 @@ springdoc:
     path: /swagger-ui.html
     enabled: true
 
-# Logging
+# 日志：落盘目录、分级文件（app / error / audit）、滚动与保留策略统一在
+# common-core 的 logback-base.xml 里定义，产物落在 logs/<服务名>/ 下；
+# 容器里用环境变量 VIDORA_LOG_PATH 指到日志卷。这里只调级别。
 logging:
   level:
     root: info
+
+---
+# 开发期才打开 SQL 日志：生产把语句连参数一起打进日志，
+# 等于把业务数据多复制一份到日志系统里，谁都能翻。
+spring:
+  config:
+    activate:
+      on-profile: dev
+logging:
+  level:
+    org.tiglor.content.mapper: debug

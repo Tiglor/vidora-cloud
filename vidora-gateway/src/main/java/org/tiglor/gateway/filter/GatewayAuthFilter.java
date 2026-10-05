@@ -6,14 +6,18 @@ import org.tiglor.common.core.security.SecurityHeaders;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
+import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.server.reactive.ServerHttpRequest;
+import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -22,13 +26,15 @@ import java.util.regex.Pattern;
  * <p>
  * - 白名单：/api/auth/** 直接放行（登录/注册无需 Token）
  * - 其余请求须携带 Authorization: Bearer <token>，校验失败返回 401
- * - 校验通过后，将 userId 以 X-User-Id 头透传给下游微服务
+ * - 校验通过后，将 userId / clientId 以请求头透传给下游微服务
+ * - 管理接口仅允许 clientKey=admin 的 Token 访问，否则返回 403
  * </p>
  */
 @Component
 public class GatewayAuthFilter implements GlobalFilter, Ordered {
 
     private static final String AUTH_PREFIX = "Bearer ";
+    private static final String ADMIN_CLIENT_KEY = "admin";
 
     /** 视频详情路径：/api/videos/{数字id} 及其子路径（如 /owner、/play-url、/download） */
     private static final Pattern VIDEO_DETAIL_PATH = Pattern.compile("^/api/videos/\\d+(/.*)?$");
@@ -52,6 +58,27 @@ public class GatewayAuthFilter implements GlobalFilter, Ordered {
             "/api/comments/replies/",
             "/api/play-counts/",
             "/api/danmaku/video/"
+    );
+
+    /** 仅限管理端（clientKey=admin）访问的接口前缀 */
+    private static final Set<String> ADMIN_PATH_PREFIXES = Set.of(
+            "/api/users/",
+            "/api/roles/",
+            "/api/menus/",
+            "/api/security-audits/",
+            "/api/categories/",
+            "/api/tags/",
+            "/api/feed-configs/",
+            "/api/hot-searches/",
+            "/api/algo-configs/",
+            "/api/search/suggests",
+            "/api/search/stats",
+            "/api/clients/",
+            // 只锁后台子路径：/api/comments/** 整体是用户端共用的，不能整个前缀拉黑
+            "/api/comments/admin/",
+            // 审计日志：记录里带着入参、返回值和客户端 IP，普通用户的 token 不该读到这些
+            "/api/oper-logs/",
+            "/api/login-logs/"
     );
 
     private final JwtUtil jwtUtil;
@@ -82,17 +109,25 @@ public class GatewayAuthFilter implements GlobalFilter, Ordered {
         }
         String token = auth.substring(AUTH_PREFIX.length());
         try {
-            // 过期、签名非法、格式错误均由 parse 抛异常，统一走 401
             Claims claims = jwtUtil.parse(token);
             Long userId = claims.get(JwtUtil.CLAIM_USER_ID, Long.class);
             String roles = JwtUtil.claimString(claims, JwtUtil.CLAIM_ROLES);
             String perms = JwtUtil.claimString(claims, JwtUtil.CLAIM_PERMS);
+            String clientId = JwtUtil.claimString(claims, JwtUtil.CLAIM_CLIENT_ID);
+            String clientKey = JwtUtil.claimString(claims, JwtUtil.CLAIM_CLIENT_KEY);
 
-            // 3. 透传身份给下游：userId + 角色 + 权限（下游 Spring Security 据此做授权）
+            // 4. 管理接口拦截：非 admin 客户端禁止访问
+            if (isAdminPath(path) && !ADMIN_CLIENT_KEY.equals(clientKey)) {
+                return forbidden(exchange);
+            }
+
+            // 5. 透传身份给下游：userId + 角色 + 权限 + 客户端标识
             ServerHttpRequest mutated = exchange.getRequest().mutate()
                     .header(SecurityHeaders.USER_ID, String.valueOf(userId))
                     .header(SecurityHeaders.ROLES, roles)
                     .header(SecurityHeaders.PERMISSIONS, perms)
+                    .header(SecurityHeaders.CLIENT_ID, clientId)
+                    .header(SecurityHeaders.CLIENT_KEY, clientKey)
                     .build();
             return chain.filter(exchange.mutate().request(mutated).build());
         } catch (Exception e) {
@@ -104,28 +139,36 @@ public class GatewayAuthFilter implements GlobalFilter, Ordered {
         if (method != HttpMethod.GET) {
             return false;
         }
-        // 视频详情：/api/videos/{id} 及其子路径
         if (VIDEO_DETAIL_PATH.matcher(path).matches()) {
             return true;
         }
-        // 精确匹配的浏览接口
         if (PUBLIC_GET_PATHS.contains(path)) {
             return true;
         }
-        // 前缀匹配的浏览接口（含路径变量）
         return PUBLIC_GET_PREFIXES.stream().anyMatch(path::startsWith);
+    }
+
+    private boolean isAdminPath(String path) {
+        return ADMIN_PATH_PREFIXES.stream().anyMatch(path::startsWith);
     }
 
     private Mono<Void> unauthorized(ServerWebExchange exchange) {
         exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
         exchange.getResponse().getHeaders().add(HttpHeaders.CONTENT_TYPE, "application/json;charset=UTF-8");
-        // 前端统一对 401 跳登录，这里无需返回 body
         return exchange.getResponse().setComplete();
+    }
+
+    private Mono<Void> forbidden(ServerWebExchange exchange) {
+        ServerHttpResponse response = exchange.getResponse();
+        response.setStatusCode(HttpStatus.FORBIDDEN);
+        response.getHeaders().setContentType(MediaType.APPLICATION_JSON);
+        String body = "{\"code\":403,\"message\":\"该接口仅限管理端访问\"}";
+        DataBuffer buffer = response.bufferFactory().wrap(body.getBytes(StandardCharsets.UTF_8));
+        return response.writeWith(Mono.just(buffer));
     }
 
     @Override
     public int getOrder() {
-        // 早于路由过滤器执行
         return -1;
     }
 }

@@ -44,6 +44,19 @@ public class HotSearchServiceImpl extends ServiceImpl<HotSearchMapper, HotSearch
     }
 
     @Override
+    // 刻意不缓存：管理端要的是「刚点完就能看到」，运营下线一个词之后刷新还看到它上线着，
+    // 只会让人以为按钮没生效而反复点
+    public List<HotSearch> adminBoard(LocalDate date, Integer status) {
+        requireDate(date);
+        return lambdaQuery()
+                .eq(HotSearch::getRankDate, date)
+                .eq(status != null, HotSearch::getStatus, status)
+                .orderByAsc(HotSearch::getRank)
+                .orderByDesc(HotSearch::getHeatScore)
+                .list();
+    }
+
+    @Override
     @CacheEvict(cacheNames = CacheNames.HOT_SEARCH_BOARD, allEntries = true)
     public int rebuild(LocalDate date) {
         requireDate(date);

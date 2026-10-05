@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS `sys_user` (
     `follow_count` INT NOT NULL DEFAULT 0 COMMENT '关注数',
     `follower_count` INT NOT NULL DEFAULT 0 COMMENT '粉丝数',
     `region` VARCHAR(50) DEFAULT NULL COMMENT '地区',
+    `theme_key` VARCHAR(32) NOT NULL DEFAULT 'light-blue' COMMENT '主题标识，对应前端主题包 key',
     `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     `is_deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除：0-未删除 1-已删除',
@@ -120,18 +121,20 @@ INSERT IGNORE INTO `sys_role` (`id`, `role_code`, `role_name`, `description`) VA
 (1, 'ROLE_ADMIN', '超级管理员', '拥有全部菜单与按钮权限'),
 (2, 'ROLE_USER',  '普通用户',   '仅可浏览视频与发表评论');
 
+-- icon 列存的是 Element Plus 图标组件名（管理端用 <component :is="icon"/> 渲染），
+-- 必须是对得上的 PascalCase 名字，写成小写或拼错的图标名不会报错，只是静默渲染成空白
 INSERT IGNORE INTO `sys_menu` (`id`, `parent_id`, `menu_name`, `menu_type`, `path`, `component`, `icon`, `sort_order`, `permission_code`, `visible`) VALUES
-(1,  0, '视频管理',   1, '/video',        NULL,                 'video',   1, NULL,             1),
-(2,  1, '视频列表',   2, '/video/list',   'pages/video/list',   'list',    1, 'video:list',     1),
-(3,  1, '视频上传',   2, '/video/upload', 'pages/video/upload', 'upload',  2, 'video:upload',   1),
+(1,  0, '视频管理',   1, '/video',        NULL,                 'VideoCamera',    1, NULL,             1),
+(2,  1, '视频列表',   2, '/video/list',   'pages/video/list',   'Film',           1, 'video:list',     1),
+(3,  1, '视频上传',   2, '/video/upload', 'pages/video/upload', 'UploadFilled',   2, 'video:upload',   1),
 (4,  1, '视频删除',   3, NULL,            NULL,                 NULL,      3, 'video:delete',   0),
-(5,  0, '互动管理',   1, '/interact',     NULL,                 'chat',    2, NULL,             1),
-(6,  5, '评论列表',   2, '/interact/comment', 'pages/interact/comment', 'comment', 1, 'comment:list', 1),
+(5,  0, '互动管理',   1, '/interact',     NULL,                 'ChatDotRound', 2, NULL,             1),
+(6,  5, '评论列表',   2, '/interact/comment', 'pages/interact/comment', 'Comment', 1, 'comment:list', 1),
 (7,  5, '评论删除',   3, NULL,            NULL,                 NULL,      2, 'comment:delete', 0),
-(8,  0, '系统管理',   1, '/system',       NULL,                 'setting', 3, NULL,             1),
-(9,  8, '用户管理',   2, '/system/user',  'pages/system/user',  'user',    1, 'user:list',      1),
-(10, 8, '角色管理',   2, '/system/role',  'pages/system/role',  'role',    2, 'role:list',      1),
-(11, 8, '菜单管理',   2, '/system/menu',  'pages/system/menu',  'menu',    3, 'menu:list',      1),
+(8,  0, '系统管理',   1, '/system',       NULL,                 'Setting', 3, NULL,             1),
+(9,  8, '用户管理',   2, '/system/user',  'pages/system/user',  'User',    1, 'user:list',      1),
+(10, 8, '角色管理',   2, '/system/role',  'pages/system/role',  'Avatar',  2, 'role:list',      1),
+(11, 8, '菜单管理',   2, '/system/menu',  'pages/system/menu',  'Menu',    3, 'menu:list',      1),
 -- 视频转码（按钮：video-service /transcode 接口所需权限；菜单树不展示）
 (12, 1,  '视频转码',   3, NULL,            NULL,                 NULL,      4, 'video:transcode', 0),
 -- 菜单管理下的按钮权限（MenuController 的 @PreAuthorize 校验）
@@ -150,7 +153,7 @@ INSERT IGNORE INTO `sys_menu` (`id`, `parent_id`, `menu_name`, `menu_type`, `pat
 (20, 8,  '通知下发',   3, NULL,            NULL,                 NULL,      4, 'message:send',   0),
 -- 内容管理（content-service）：分类/标签是字典维护，流配置和热搜是运营位，安全审核是审核台
 -- 读取接口只要登录即可，不占权限位；这里五个权限位全是「能改」的操作
-(21, 0,  '内容管理',   1, '/content',      NULL,                 'tag',     4, NULL,             1),
+(21, 0,  '内容管理',   1, '/content',      NULL,                 'CollectionTag', 4, NULL,             1),
 (22, 21, '分类管理',   3, NULL,            NULL,                 NULL,      1, 'content:category:manage', 0),
 (23, 21, '标签管理',   3, NULL,            NULL,                 NULL,      2, 'content:tag:manage',      0),
 (24, 21, '推荐流配置', 3, NULL,            NULL,                 NULL,      3, 'content:feed:manage',     0),
@@ -158,13 +161,13 @@ INSERT IGNORE INTO `sys_menu` (`id`, `parent_id`, `menu_name`, `menu_type`, `pat
 (26, 21, '安全审核',   3, NULL,            NULL,                 NULL,      5, 'content:audit:manage',    0),
 -- 推荐管理（recommend-service）：日常读写和不可逆清理分开授权
 -- 算法任务的服务账号只需要 recommend:manage，不该顺手拿到清空候选表的能力
-(27, 0,  '推荐管理',   1, '/recommend',    NULL,                 'star',    5, NULL,             1),
+(27, 0,  '推荐管理',   1, '/recommend',    NULL,                 'Star',    5, NULL,             1),
 (28, 27, '推荐运维',   3, NULL,            NULL,                 NULL,      1, 'recommend:manage', 0),
 (29, 27, '推荐数据清理', 3, NULL,          NULL,                 NULL,      2, 'recommend:purge',  0),
 -- 搜索管理（search-service）：建议词是运营维护的字典，统计是原始词频
 -- 用户自己的搜索历史不占权限位，靠登录态 + user_id 过滤；联想框只要登录
 -- 统计连读都要权限：全站词频能反推出用户群体在找什么，包括站内没有的片源
-(30, 0,  '搜索管理',   1, '/search',       NULL,                 'search',  6, NULL,             1),
+(30, 0,  '搜索管理',   1, '/search',       NULL,                 'Search',  6, NULL,             1),
 (31, 30, '建议词管理', 3, NULL,            NULL,                 NULL,      1, 'search:suggest:manage', 0),
 (32, 30, '搜索统计',   3, NULL,            NULL,                 NULL,      2, 'search:stat:view',      0);
 
@@ -179,6 +182,68 @@ INSERT IGNORE INTO `sys_role_menu` (`role_id`, `menu_id`) VALUES
 -- 注：当前 ROLE_USER 按设计仅"浏览+评论"；若需放开普通用户上传，把菜单ID 3(video:upload) 加入下方即可。
 INSERT IGNORE INTO `sys_role_menu` (`role_id`, `menu_id`) VALUES
 (2,1),(2,2),(2,5),(2,6);
+
+-- -----------------------------------------------------------
+-- 客户端配置表（参考 RuoYi-Cloud-Plus sys_client 设计）
+-- 不同端可配置独立的 token 过期时间与认证方式
+-- -----------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `sys_client` (
+    `id`          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `client_id`   VARCHAR(64)  NOT NULL COMMENT '客户端ID(前端写死)',
+    `client_key`  VARCHAR(64)  NOT NULL COMMENT '客户端标识: web/mobile/admin',
+    `device_type` VARCHAR(32)  NOT NULL COMMENT '设备类型: pc/app',
+    `grant_type`  VARCHAR(128) NOT NULL DEFAULT 'password' COMMENT '允许的认证方式',
+    `timeout`     INT          NOT NULL DEFAULT 604800 COMMENT 'token固定过期(秒)',
+    `status`      TINYINT      NOT NULL DEFAULT 1 COMMENT '0停用 1启用',
+    `create_time` DATETIME     DEFAULT CURRENT_TIMESTAMP,
+    `update_time` DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `is_deleted`  TINYINT      NOT NULL DEFAULT 0,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_client_id` (`client_id`),
+    UNIQUE KEY `uk_client_key` (`client_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='客户端配置';
+
+INSERT IGNORE INTO `sys_client` (`client_id`, `client_key`, `device_type`, `grant_type`, `timeout`) VALUES
+('vidora-web-2024',    'web',    'pc',  'password', 604800),   -- 7天
+('vidora-mobile-2024', 'mobile', 'app', 'password', 2592000),  -- 30天
+('vidora-admin-2024',  'admin',  'pc',  'password', 28800);    -- 8小时
+
+-- 客户端管理菜单权限（挂在"系统管理"目录 id=8 下）
+INSERT IGNORE INTO `sys_menu` (`id`,`parent_id`,`menu_name`,`menu_type`,`path`,`component`,`icon`,`sort_order`,`permission_code`,`visible`) VALUES
+(33, 8,  '客户端管理', 2, '/system/client', 'pages/system/client', 'Monitor', 4, NULL,                   1),
+(34, 33, '客户端查询', 3, NULL, NULL, NULL, 1, 'system:client:list',   0),
+(35, 33, '客户端新增', 3, NULL, NULL, NULL, 2, 'system:client:add',    0),
+(36, 33, '客户端修改', 3, NULL, NULL, NULL, 3, 'system:client:edit',   0),
+(37, 33, '客户端删除', 3, NULL, NULL, NULL, 4, 'system:client:delete', 0);
+
+INSERT IGNORE INTO `sys_role_menu` (`role_id`, `menu_id`) VALUES (1,33),(1,34),(1,35),(1,36),(1,37);
+
+-- 内容管理下的页面级菜单（原 22-26 均为按钮权限，缺少可导航的菜单页面）
+INSERT IGNORE INTO `sys_menu` (`id`,`parent_id`,`menu_name`,`menu_type`,`path`,`component`,`icon`,`sort_order`,`permission_code`,`visible`) VALUES
+(38, 21, '分类管理', 2, '/content/category',  'pages/content/category',  'Folder',      1, NULL, 1),
+(39, 21, '标签管理', 2, '/content/tag',       'pages/content/tag',       'PriceTag',    2, NULL, 1),
+(40, 21, '热搜运营', 2, '/content/hot-search','pages/content/hotSearch', 'TrendCharts', 3, NULL, 1),
+(41, 21, '安全审核', 2, '/content/audit',     'pages/content/audit',     'DocumentChecked', 4, NULL, 1),
+-- 推荐管理下的页面级菜单
+(42, 27, '推荐流配置', 2, '/recommend/feed-config', 'pages/recommend/feedConfig', 'Setting',  1, NULL, 1),
+(43, 27, '算法配置',   2, '/recommend/algo-config', 'pages/recommend/algoConfig', 'Cpu',      2, NULL, 1),
+-- 搜索管理下的页面级菜单
+(44, 30, '建议词管理', 2, '/search/suggest',  'pages/search/suggest',    'EditPen',     1, NULL, 1),
+(45, 30, '搜索统计',   2, '/search/stats',    'pages/search/stats',      'DataLine',    2, NULL, 1);
+
+INSERT IGNORE INTO `sys_role_menu` (`role_id`, `menu_id`) VALUES
+(1,38),(1,39),(1,40),(1,41),(1,42),(1,43),(1,44),(1,45);
+
+-- 用户管理下的按钮权限（UserController 的 @PreAuthorize 校验）
+-- 读列表用已有的 user:list（菜单 9）；GET /users/{id} 刻意不挂权限位——
+-- video-service 的 /videos/{id}/owner 是拿「浏览者自己的 token」Feign 调过去的，
+-- 挂上 user:list 会让移动端视频详情页看 UP 主昵称时 403。
+INSERT IGNORE INTO `sys_menu` (`id`,`parent_id`,`menu_name`,`menu_type`,`path`,`component`,`icon`,`sort_order`,`permission_code`,`visible`) VALUES
+(46, 9, '用户新增', 3, NULL, NULL, NULL, 1, 'user:add',    0),
+(47, 9, '用户修改', 3, NULL, NULL, NULL, 2, 'user:edit',   0),
+(48, 9, '用户删除', 3, NULL, NULL, NULL, 3, 'user:delete', 0);
+
+INSERT IGNORE INTO `sys_role_menu` (`role_id`, `menu_id`) VALUES (1,46),(1,47),(1,48);
 
 -- 用户画像标签表
 CREATE TABLE IF NOT EXISTS `user_tag` (

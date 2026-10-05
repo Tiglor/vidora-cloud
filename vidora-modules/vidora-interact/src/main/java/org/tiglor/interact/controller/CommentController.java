@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.tiglor.common.core.ApiResult;
+import org.tiglor.common.log.annotation.BusinessType;
+import org.tiglor.common.log.annotation.OperLog;
 import org.tiglor.common.core.security.UserContext;
 import org.tiglor.interact.dto.CommentCreateRequest;
 import org.tiglor.interact.dto.CommentView;
@@ -76,9 +78,26 @@ public class CommentController {
         return ApiResult.ok();
     }
 
+    /**
+     * 后台「评论列表」分页：跨视频全量，含审核中的和楼中楼回复。
+     * <p>
+     * {@code comment:list} 这个权限位从建表起就挂在菜单 6 上，类注释里也写明了它管的是
+     * 后台评论管理页的可见性，但一直没有接口真正消费它——审核者只能一个视频一个视频地翻。
+     * </p>
+     */
+    @GetMapping("/admin/page")
+    @PreAuthorize("hasAuthority('comment:list')")
+    public ApiResult<Page<CommentView>> pageForAdmin(@RequestParam(required = false) String keyword,
+                                                     @RequestParam(required = false) Integer status,
+                                                     @RequestParam(defaultValue = "1") long current,
+                                                     @RequestParam(defaultValue = "10") long size) {
+        return ApiResult.ok(commentService.pageForAdmin(keyword, status, current, size));
+    }
+
     /** 审核：把评论置为正常(1)或审核中(2) */
     @PutMapping("/{id}/audit")
     @PreAuthorize("hasAuthority('comment:audit')")
+    @OperLog(title = "评论管理", type = BusinessType.AUDIT)
     public ApiResult<Void> audit(@PathVariable Long id, @RequestParam int status) {
         commentService.audit(id, status);
         return ApiResult.ok();

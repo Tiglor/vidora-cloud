@@ -1,8 +1,8 @@
 # 视频播放平台 - 架构落地文档
 
-> 📦 **本仓库是「后端独立包」。前端是另一个独立包**（由前端负责人维护），两包通过网关 REST API 协作；本仓库不含任何前端代码。
+> 📦 **本仓库是「后端独立包」。前端是三个独立包**——`../vidora-web`（桌面消费站）、`../vidora-mobile`（uni-app）、`../vidora-admin`（运营后台），各自维护，只通过网关 REST API 与本仓库协作；本仓库不含任何前端代码。
 >
-> **构建状态（2026-10-03）**：JDK 25 + Spring Boot 4.0.7 下，根工程 11 个模块 `mvn clean compile` 已 **BUILD SUCCESS**（产物字节码 major=69，即 Java 25）；本轮新增视频存储（MinIO/本地）、FFmpeg 多媒体处理、以及**异步多清晰度 HLS 转码流水线**（提交任务 + @Async Worker 池 + 状态机 + 重试）后重编译仍全绿。
+> **构建状态（2026-10-05）**：JDK 25 + Spring Boot 4.0.7 下，根工程 **20 个模块**（4 个聚合 pom + 9 个可运行服务 + 7 个库）`mvn -o compile` 已 **BUILD SUCCESS**（产物字节码 major=69，即 Java 25）；本轮新增的调用契约层 `vidora-api/vidora-api-system` 与第三方适配层 `vidora-integration` 已进 reactor 并编译通过。历史上的存储、FFmpeg 多媒体处理、异步多清晰度 HLS 转码流水线（提交任务 + Worker 池 + 状态机 + 重试）均保持全绿。
 
 ## 0. Boot 4 / JDK 25 迁移要点（踩坑记录）
 
@@ -48,6 +48,8 @@
 | message-service | 8105 | MessageRecord / MessageConversation / PushDevice | 站内通知与互动消息、私信会话（未读红点、时间线）、推送设备绑定，见第 10 节 |
 | search-service | 8106 | SearchHistory / SearchKeywordStat / SearchSuggest | 我的搜索历史、全站词频统计（按天）、建议词字典与自动挖掘；**检索本身未接 ES**，见第 13 节 |
 | recommend-service | 8107 | RecommendResult / AlgoConfig / UserFeature | 推荐流（取出即标记曝光）、点击上报、算法配置（进 Redis）、用户画像批量写入，见第 12 节 |
+
+上表是 9 个**可运行服务**。仓库里还有三类只出 jar 的模块：`vidora-common/*` 公共库（见第 3 节）、`vidora-api/vidora-api-{服务名}` 服务间调用契约、`vidora-integration` 第三方适配层（后两者的归属判据见 6.2.1）。
 
 每个微服务统一分层：
 
@@ -132,10 +134,33 @@ org.tiglor.{module}.{service}/
 
 ### 6.2.1 微服务之间如何调用
 
+判据只有一条：**对端是否和你在同一个仓库、同一次发布**。是 → 内部调用，走契约层；否 → 第三方，走适配层。
+
+| 层 | 归谁 | 放哪 | 现状 |
+| --- | --- | --- | --- |
+| 调用契约（interface + DTO） | **被调用方**拥有并发布 | `vidora-api/vidora-api-{服务名}` | 已有 `vidora-api-system`（`UserApi` + `RemoteUserDTO`） |
+| 调用实现（传输层） | 调用方 | 各服务 `client/` 包 | OpenFeign；Dubbo 3 条件触发（见下） |
+| 第三方适配（防腐层） | 平台外部系统 | `vidora-integration` | 模块已立边界，尚无真实调用方 |
+
 - **客户端访问后端**：统一进入 `gateway-service`，由 Spring Cloud Gateway 按 `/api/*` 路径路由到目标服务。
 - **服务发现**：使用 Nacos Discovery；网关里的 `lb://auth-service`、`lb://system-service` 等逻辑服务名由 Spring Cloud LoadBalancer 解析为实例地址。
-- **当前代码状态**：已在 `video-service` 集成 Spring Cloud OpenFeign，并提供 `SystemUserClient` 调用 `system-service` 的基础客户端；其他服务按实际调用关系逐步增加客户端，不为没有调用需求的服务强行引入依赖。
-- **同步调用约定**：使用 Spring Cloud OpenFeign + Nacos，例如 `@FeignClient(name = "system-service")`，禁止写死 IP/端口。Feign 统一配置连接超时、读取超时、日志级别和后续降级策略。
+- **契约归属**：接口与 DTO 写在 `vidora-api-{服务名}`，调用方依赖那个 jar，**不再在自己模块里手抄一份**。
+  这次清掉的历史包袱就是 `RemoteUserDTO`——它原先住在调用方 `vidora-video/client/dto`，字段是 `User` 的手抄子集，没有任何东西约束两者对齐。
+  契约模块不引 `spring-web`（所以没有 `@GetMapping`），HTTP 侧由调用方的 Feign 接口 `extends` 契约并重新声明注解，
+  `@Override` 保证方法签名与返回类型不漂移（已用反向对照实测：改调用方方法名 → 编译失败）。
+- ⚠️ **没解决的另一半**：`UserController.getById` 的 HTTP 出口返回的是自己的 `User` 实体而不是 `RemoteUserDTO`，
+  所以「provider 少发一个字段」这类**字段级**漂移编译期抓不到，契约只锁签名。要闭环有两条路，都属于跨端契约变更、需先拍板：
+  provider 侧直接 `implements UserApi`，或等 Dubbo 落地后由 provider 实现同一个契约接口。
+- **同步调用约定**：Spring Cloud OpenFeign + Nacos，禁止写死 IP/端口；Feign 统一配置连接超时、读取超时、日志级别和后续降级策略。
+  其他服务按实际调用关系逐步增加客户端，不为没有调用需求的服务强行引入依赖。
+- **为什么不现在上 Dubbo 3**：Dubbo 的收益在**一次请求里的多次跨服务跳**（长连接多路复用、二进制序列化、provider 侧批量）。
+  当前全仓只有 1 条业务同步调用（`VideoController.owner` → `SystemUserClient`），首屏 / 详情 / 评论 / 搜索都在自己库里出，一次服务边界都不跨；
+  另一条同步边是审计上报（`RemoteLogSink`，独立线程池 + 失败回落文件），本来就不在请求线程上。**没有链路可优化。**
+  满足任一条件再评估：① 出现一次请求 ≥5 次跨服务跳（典型是 feed 改成服务端聚合：一页 20 条要补作者 + 计数 + 分类）；② 内部调用量把 HTTP/1.1 + JSON 打成可测量瓶颈。
+  届时的三个前置：`dubbo-spring-boot-starter` 在 Boot 4.0.7 / JDK 25 上的兼容探针（RocketMQ 的 starter 就是因为按 Spring 5.3.27 编译被否，见 6.4，同一列风险）；
+  身份透传从 `X-User-*` 请求头换成 Dubbo attachment 并复用 `UserContext`（鉴权面改动）；
+  契约接口的返回值从 `ApiResult<T>` 换成裸 DTO + 异常传播（`{code,message,data}` 是 HTTP 外壳，不该变成服务间的强制约定）。
+  网关是 WebFlux，**阻塞式 Dubbo 调用不能进事件循环线程**，只在 servlet 服务之间用。
 - **身份透传**：`video-service` 的 Feign `RequestInterceptor` 会透传 `X-User-Id`、`X-User-Roles`、`X-User-Permissions`，下游服务继续复用 `HeaderAuthenticationFilter` 做接口授权。
 - **异步调用**：转码任务已走 RocketMQ（`vidora-transcode-task`，见 6.4 / 8.2）。**跨服务事件尚未接**——转码完成通知、计数更新、弹幕入库等仍待落地；这类不要求立即返回的场景应发事件消息，避免服务之间形成同步调用链。
 - **数据边界**：服务之间只调用对方 API 或订阅事件，不直接访问对方数据库表；认证服务与系统服务目前共享既有身份表是迁移阶段安排，后续可拆分为独立身份库。
@@ -240,16 +265,31 @@ org.tiglor.{module}.{service}/
 > 注：`../vidora-common/common-core` 只引入 `spring-security-core`（纯 API，无自动配置），
 > 因此 WebFlux 网关不受影响；自动配置的 starter 只加在业务服务。
 
-### 7.5 菜单控制接口
-| 接口 | 说明 |
-|---|---|
-| `GET /api/menus` | **当前登录用户的菜单树**（前端据此渲染菜单） |
-| `GET /api/menus/tree` | 全部菜单树（需 `menu:list`） |
-| `GET /api/menus/role/{roleId}` | 某角色已授权菜单ID |
-| `POST /api/menus/role/{roleId}` | 给角色授权菜单，全量覆盖（需 `menu:assign`） |
-| `POST/PUT/DELETE /api/menus` | 菜单增删改（需 `menu:add` / `menu:edit` / `menu:delete`） |
-| `GET /api/roles` | 角色列表（需 `role:list`） |
-| `POST /api/roles/user/{userId}` | 给用户分配角色，全量覆盖（需 `role:assign`） |
+### 7.5 系统管理接口（system-service）
+| 接口 | 权限 | 说明 |
+|---|---|---|
+| `GET /api/menus` | 登录 | **当前登录用户的菜单树**（前端据此渲染菜单） |
+| `GET /api/menus/tree` | `menu:list` | 全部菜单树，含 `visible=0` / `status=0` 的行 |
+| `GET /api/menus/role/{roleId}` | `menu:list` | 某角色已授权菜单ID |
+| `POST /api/menus/role/{roleId}` | `menu:assign` | 给角色授权菜单，全量覆盖 |
+| `POST/PUT/DELETE /api/menus` | `menu:add` / `menu:edit` / `menu:delete` | 菜单增删改，收裸实体 |
+| `GET /api/roles` | `role:list` | 角色列表。没有角色增删改——角色是种子数据，运营只做授权 |
+| `GET /api/roles/user/{userId}` | `role:list` | 某用户已有角色ID |
+| `POST /api/roles/user/{userId}` | `role:assign` | 给用户分配角色，全量覆盖 |
+| `GET /api/users/page?phone=&nickname=&status=` | `user:list` | phone / nickname 模糊，status 精确；`size` 夹在 100 |
+| `GET /api/users/{id}` | **不挂权限位** | 见下方说明，这是刻意的例外 |
+| `POST /api/users` | `user:add` | 收裸实体，**建不出能登录的账号**：`password_hash` 是 NOT NULL 而这里不做 BCrypt |
+| `PUT /api/users/{id}` | `user:edit` | `updateById` 跳过 null，只改提交上来的字段 |
+| `DELETE /api/users/{id}` | `user:delete` | 逻辑删 |
+| `GET /api/clients/page`、`GET /api/clients/{id}` | `system:client:list` | 客户端配置，`page` 无过滤条件 |
+| `POST /api/clients` | `system:client:add` | |
+| `PUT /api/clients/{id}` | `system:client:edit` | |
+| `DELETE /api/clients/{id}` | `system:client:delete` | |
+
+`GET /users/{id}` 不挂 `user:list` 是**必需的例外**而不是漏写：video-service 的
+`GET /videos/{id}/owner` 是拿「浏览者自己的 token」Feign 调它来取 UP 主昵称头像，
+挂上权限位会让移动端视频详情页 403。它因此只算内部接口——出口只有 `RemoteUserDTO` 那几个字段，
+且网关把 `/api/users/**` 整体挡在管理端 clientKey 之外（绕过网关直连服务端口不在这个例外的考虑范围内）。
 
 ## 8. 视频存储与 FFmpeg 多媒体处理（异步多清晰度 HLS 流水线）
 
@@ -688,6 +728,11 @@ private Integer rank;
 - 返回值是**真正发生变化的行数**，不是扫过的行数——运营点一次重排看到「0」就知道榜单没动过。
 - 读取时 `ORDER BY rank ASC, heat_score DESC`：还没重算过的新词 `rank` 全是 0，
   靠热度兜一下，不至于挤在榜首顺序随机。
+- 正因为看板只吐 `status=1` 的词，**下线等于失联**：`PUT /{id}/status` 要的是 id，
+  而下线的词在任何读接口里都不出现，运营拿不到那个 id，敏感词一下线就再也拉不回来。
+  `GET /hot-searches/admin/list?date=&status=` 就是为了补这条回路——它是唯一能看见下线词的入口，
+  所以刻意**不带 `@Cacheable`**（缓存在什么都能查的场景里是负担），同时把服务侧的匿名放行
+  从 `/hot-searches/**` 收窄成 `/hot-searches` 一条，避免这个新入口顺带变成匿名口。
 
 ### 11.5 机审覆盖会作废人工结论
 
@@ -761,7 +806,8 @@ JSON 列在 MySQL 侧就会拒绝非法值（错误 3140），而那个错误传
 | GET | `/feed-configs/list?feedType=` | `content:feed:manage` | 带 id 与 description，给管理端表格 |
 | PUT | `/feed-configs` | `content:feed:manage` | 按 `(feedType, configKey)` 建或改 |
 | DELETE | `/feed-configs/{id}` | `content:feed:manage` | |
-| GET | `/hot-searches?date=` | 登录 | 某天上线中的词，走缓存；不传日期看今天 |
+| GET | `/hot-searches?date=` | 匿名 | 某天**上线中**的词，走缓存；不传日期看今天。网关 `PUBLIC_GET_PATHS` 精确放行，服务侧也只 permitAll 这一条 |
+| GET | `/hot-searches/admin/list?date=&status=` | `content:hotsearch:manage` | 管理端看板，含已下线的词；不缓存 |
 | POST | `/hot-searches` | `content:hotsearch:manage` | 加词或刷新热度，不接受 rank |
 | POST | `/hot-searches/rebuild?date=` | `content:hotsearch:manage` | 返回真正改动的行数 |
 | PUT | `/hot-searches/{id}/status?status=` | `content:hotsearch:manage` | 下线敏感词走这里 |

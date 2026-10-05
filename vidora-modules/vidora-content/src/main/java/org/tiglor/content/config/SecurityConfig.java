@@ -55,7 +55,6 @@ public class SecurityConfig {
                                 "/tags/hot",
                                 "/tags/suggest",
                                 "/hot-searches",
-                                "/hot-searches/**",
                                 "/feed-configs/list",
                                 "/feed-configs/configs/{feedType}"
                         ).permitAll()

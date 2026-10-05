@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  全平台统一的 logback 配置，由各服务的 logback-spring.xml 通过
+      <include resource="logback/logback-base.xml"/>
+  引入。放在 common-core 而不是 common-log：网关排掉了 spring-boot-starter-web，
+  不能为了一个 XML 去依赖 common-log，而日志落点必须所有服务一致。
+  以前 9 个服务各自只写了 logging.level.root: info，
+  结果运行日志全靠手工 `> auth.log 2>&1` 重定向，在仓库根目录堆了二十多个散文件。
+
+  目录约定（LOG_HOME 默认 logs，用环境变量 VIDORA_LOG_PATH 覆盖）：
+      logs/<spring.application.name>/app.log     全量（INFO 及以上），排查主现场
+      logs/<spring.application.name>/error.log   只收 ERROR，告警与快速定位用
+      logs/<spring.application.name>/audit.log   @OperLog 审计流水，一行一条 JSON
+  三类都按「天 + 大小」滚动并 gz 压缩，保留期与总量见下面的 springProperty。
+-->
+<included>
+    <springProperty scope="context" name="APP_NAME" source="spring.application.name" defaultValue="vidora"/>
+    <springProperty scope="context" name="LOG_HOME" source="vidora.log.path" defaultValue="logs"/>
+    <springProperty scope="context" name="MAX_FILE_SIZE" source="vidora.log.max-file-size" defaultValue="100MB"/>
+    <springProperty scope="context" name="MAX_HISTORY" source="vidora.log.max-history" defaultValue="30"/>
+    <springProperty scope="context" name="TOTAL_SIZE_CAP" source="vidora.log.total-size-cap" defaultValue="5GB"/>
+
+    <!-- traceId 由 TraceIdFilter（网关侧为 TraceIdGlobalFilter）放进 MDC，
+         跨服务排查时拿一个 id 就能把整条链路的日志串起来 -->
+    <property name="LOG_PATTERN"
+              value="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [${APP_NAME} traceId=%X{traceId:-}] [%thread] %logger{40} - %msg%n"/>
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${LOG_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <appender name="APP_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_HOME}/${APP_NAME}/app.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_HOME}/${APP_NAME}/app.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <maxFileSize>${MAX_FILE_SIZE}</maxFileSize>
+            <maxHistory>${MAX_HISTORY}</maxHistory>
+            <totalSizeCap>${TOTAL_SIZE_CAP}</totalSizeCap>
+            <cleanHistoryOnLimit>true</cleanHistoryOnLimit>
+        </rollingPolicy>
+        <encoder>
+            <pattern>${LOG_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <appender name="ERROR_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_HOME}/${APP_NAME}/error.log</file>
+        <filter class="ch.qos.logback.classic.filter.LevelFilter">
+            <level>ERROR</level>
+            <onMatch>ACCEPT</onMatch>
+            <onMismatch>DENY</onMismatch>
+        </filter>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_HOME}/${APP_NAME}/error.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <maxFileSize>${MAX_FILE_SIZE}</maxFileSize>
+            <!-- 错误日志留得比全量久：出过一次的问题要能在几周后回溯到 -->
+            <maxHistory>90</maxHistory>
+            <totalSizeCap>${TOTAL_SIZE_CAP}</totalSizeCap>
+            <cleanHistoryOnLimit>true</cleanHistoryOnLimit>
+        </rollingPolicy>
+        <encoder>
+            <pattern>${LOG_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <appender name="AUDIT_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_HOME}/${APP_NAME}/audit.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_HOME}/${APP_NAME}/audit.%d{yyyy-MM-dd}.log.gz</fileNamePattern>
+            <!-- 审计是合规要查的东西，保留期单独放宽 -->
+            <maxHistory>365</maxHistory>
+        </rollingPolicy>
+        <encoder>
+            <!-- 一行一条 JSON，便于后续被采集器直接吃掉 -->
+            <pattern>%msg%n</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <appender name="ASYNC_APP" class="ch.qos.logback.classic.AsyncAppender">
+        <queueSize>2048</queueSize>
+        <!-- 0 表示队列将满时也不丢弃 INFO 及以上；WARN/ERROR 无论如何都会保留 -->
+        <discardingThreshold>0</discardingThreshold>
+        <!-- 队列满时宁可丢日志也不让业务线程卡在写盘上 -->
+        <neverBlock>true</neverBlock>
+        <appender-ref ref="APP_FILE"/>
+    </appender>
+
+    <appender name="ASYNC_ERROR" class="ch.qos.logback.classic.AsyncAppender">
+        <queueSize>512</queueSize>
+        <discardingThreshold>0</discardingThreshold>
+        <neverBlock>true</neverBlock>
+        <appender-ref ref="ERROR_FILE"/>
+    </appender>
+
+    <appender name="ASYNC_AUDIT" class="ch.qos.logback.classic.AsyncAppender">
+        <queueSize>4096</queueSize>
+        <discardingThreshold>0</discardingThreshold>
+        <!-- 审计不允许丢，所以队列满时阻塞业务线程；管理端写操作本就低频 -->
+        <neverBlock>false</neverBlock>
+        <appender-ref ref="AUDIT_FILE"/>
+    </appender>
+
+    <logger name="AUDIT" level="INFO" additivity="false">
+        <appender-ref ref="ASYNC_AUDIT"/>
+    </logger>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="ASYNC_APP"/>
+        <appender-ref ref="ASYNC_ERROR"/>
+    </root>
+</included>

@@ -55,6 +55,8 @@
 
     <modules>
         <module>vidora-common</module>
+        <module>vidora-api</module>
+        <module>vidora-integration</module>
         <module>vidora-gateway</module>
         <module>vidora-auth</module>
         <module>vidora-modules</module>
@@ -105,6 +107,12 @@
                 <artifactId>vidora-common-redis</artifactId>
                 <version>${project.version}</version>
             </dependency>
+            <!-- 统一日志：logback 分级滚动 + traceId + @OperLog 操作审计，所有业务服务引入 -->
+            <dependency>
+                <groupId>org.tiglor</groupId>
+                <artifactId>vidora-common-log</artifactId>
+                <version>${project.version}</version>
+            </dependency>
             <!-- 单元测试支撑：脱离 Spring 容器直接 new ServiceImpl 时的 MyBatis-Plus 装配，
                  各业务模块以 test scope 引入，不要放进 main scope -->
             <dependency>
@@ -112,6 +120,20 @@
                 <artifactId>vidora-common-test</artifactId>
                 <version>${project.version}</version>
                 <scope>test</scope>
+            </dependency>
+
+            <!-- 调用契约：provider 拥有并发布自己的 vidora-api-{服务名}，调用方按需依赖。
+                 新增一个契约子模块时记得同时在 vidora-api/pom.xml 的 <modules> 里登记 -->
+            <dependency>
+                <groupId>org.tiglor</groupId>
+                <artifactId>vidora-api-system</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <!-- 第三方适配层：业务服务在真正需要某个外部调用之前不要引它 -->
+            <dependency>
+                <groupId>org.tiglor</groupId>
+                <artifactId>vidora-integration</artifactId>
+                <version>${project.version}</version>
             </dependency>
 
             <!-- 工具类 -->

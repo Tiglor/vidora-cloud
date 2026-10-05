@@ -19,10 +19,20 @@
             <groupId>org.tiglor</groupId>
             <artifactId>vidora-common-core</artifactId>
         </dependency>
+        <!-- 统一日志：logback 分级滚动 + traceId + @OperLog 操作审计 -->
+        <dependency>
+            <groupId>org.tiglor</groupId>
+            <artifactId>vidora-common-log</artifactId>
+        </dependency>
         <!-- 播放地址等热点读走 Redis 缓存 -->
         <dependency>
             <groupId>org.tiglor</groupId>
             <artifactId>vidora-common-redis</artifactId>
+        </dependency>
+        <!-- system-service 发布的调用契约（UserApi / RemoteUserDTO），本服务是当前的调用方 -->
+        <dependency>
+            <groupId>org.tiglor</groupId>
+            <artifactId>vidora-api-system</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>

@@ -40,6 +40,12 @@ public class SecurityConfig {
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
+                                // 服务间审计上报。调用方是 common-log 的异步上报线程，手上没有用户 JWT，
+                                // 过不了 HeaderAuthenticationFilter，所以只能放行；
+                                // 它不是公网暴露面——网关只路由 /api/**，从不转发 /internal。
+                                // 残留风险是 nacos discovery locator（/{service-id}/internal/... 理论上可达），
+                                // 由 InternalLogController 里的 X-Ingest-Token 校验兜住。
+                                "/internal/**",
                                 "/auth/**",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",

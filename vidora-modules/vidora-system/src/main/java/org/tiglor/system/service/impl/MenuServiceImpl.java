@@ -170,6 +170,7 @@ public class MenuServiceImpl extends ServiceImpl<MenuMapper, Menu> implements Me
         v.setSortOrder(m.getSortOrder());
         v.setPermissionCode(m.getPermissionCode());
         v.setVisible(m.getVisible());
+        v.setStatus(m.getStatus());
         return v;
     }
 }

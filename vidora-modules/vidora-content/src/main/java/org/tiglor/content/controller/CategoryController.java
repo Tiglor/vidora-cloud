@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.tiglor.common.core.ApiResult;
+import org.tiglor.common.log.annotation.BusinessType;
+import org.tiglor.common.log.annotation.OperLog;
 import org.tiglor.content.dto.CategoryNode;
 import org.tiglor.content.dto.CategoryRequest;
 import org.tiglor.content.entity.Category;
@@ -58,12 +60,14 @@ public class CategoryController {
 
     @PostMapping
     @PreAuthorize("hasAuthority('content:category:manage')")
+    @OperLog(title = "分类管理", type = BusinessType.INSERT)
     public ApiResult<Category> create(@Valid @RequestBody CategoryRequest request) {
         return ApiResult.ok(service.create(request));
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('content:category:manage')")
+    @OperLog(title = "分类管理", type = BusinessType.UPDATE)
     public ApiResult<Category> update(@PathVariable Long id, @Valid @RequestBody CategoryRequest request) {
         return ApiResult.ok(service.update(id, request));
     }
@@ -71,6 +75,7 @@ public class CategoryController {
     /** 禁用(0) / 启用(1)。下架一个分类应该走这里，删除只在它确实没被用时才允许 */
     @PutMapping("/{id}/status")
     @PreAuthorize("hasAuthority('content:category:manage')")
+    @OperLog(title = "分类管理", type = BusinessType.CHANGE_STATUS)
     public ApiResult<Void> setStatus(@PathVariable Long id, @RequestParam int status) {
         service.setStatus(id, status);
         return ApiResult.ok();
@@ -78,6 +83,7 @@ public class CategoryController {
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('content:category:manage')")
+    @OperLog(title = "分类管理", type = BusinessType.DELETE)
     public ApiResult<Void> delete(@PathVariable Long id) {
         service.delete(id);
         return ApiResult.ok();

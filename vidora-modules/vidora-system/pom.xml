@@ -19,6 +19,11 @@
             <groupId>org.tiglor</groupId>
             <artifactId>vidora-common-core</artifactId>
         </dependency>
+        <!-- 统一日志：logback 分级滚动 + traceId + @OperLog 操作审计 -->
+        <dependency>
+            <groupId>org.tiglor</groupId>
+            <artifactId>vidora-common-log</artifactId>
+        </dependency>
         <!-- RBAC 实体与 Mapper（与 auth-service 共用 user_service 库） -->
         <dependency>
             <groupId>org.tiglor</groupId>

@@ -45,7 +45,9 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
                 SecurityContextHolder.getContext().setAuthentication(authentication);
 
                 Long userId = parseLongOrNull(userIdHeader);
-                UserContext.set(userId, roles, perms);
+                String clientId = request.getHeader(SecurityHeaders.CLIENT_ID);
+                String clientKey = request.getHeader(SecurityHeaders.CLIENT_KEY);
+                UserContext.set(userId, roles, perms, clientId, clientKey);
             }
             chain.doFilter(request, response);
         } finally {

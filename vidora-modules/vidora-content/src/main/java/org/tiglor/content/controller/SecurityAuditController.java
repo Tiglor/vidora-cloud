@@ -13,6 +13,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.tiglor.common.core.ApiResult;
+import org.tiglor.common.log.annotation.BusinessType;
+import org.tiglor.common.log.annotation.OperLog;
 import org.tiglor.content.dto.MachineAuditRequest;
 import org.tiglor.content.dto.ManualReviewRequest;
 import org.tiglor.content.entity.SecurityAudit;
@@ -68,6 +70,7 @@ public class SecurityAuditController {
     /** 人工复核，允许对已复核过的对象改判 */
     @PutMapping("/{id}/review")
     @PreAuthorize("hasAuthority('content:audit:manage')")
+    @OperLog(title = "内容审核", type = BusinessType.AUDIT)
     public ApiResult<SecurityAudit> review(@PathVariable Long id,
                                            @Valid @RequestBody ManualReviewRequest request) {
         return ApiResult.ok(service.review(id, request));

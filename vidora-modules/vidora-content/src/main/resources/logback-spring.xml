@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  本服务的日志配置。全部策略在 common-core 的 logback-base.xml 里，
+  这里只负责引入 —— 九个服务各自抄一份的结果就是没有一份是对的。
+-->
+<configuration>
+    <include resource="logback/logback-base.xml"/>
+</configuration>

@@ -2,6 +2,8 @@ package org.tiglor.system.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.tiglor.common.core.ApiResult;
+import org.tiglor.common.log.annotation.BusinessType;
+import org.tiglor.common.log.annotation.OperLog;
 import org.tiglor.common.redis.CacheNames;
 import org.tiglor.common.user.entity.Role;
 import org.tiglor.common.user.entity.UserRole;
@@ -45,6 +47,7 @@ public class RoleController {
     /** 给用户分配角色（全量覆盖） */
     @PostMapping("/user/{userId}")
     @PreAuthorize("hasAuthority('role:assign')")
+    @OperLog(title = "角色管理", type = BusinessType.GRANT)
     @Transactional(rollbackFor = Exception.class)
     // 角色变了菜单权限就变了，必须让该用户已缓存的菜单树失效
     @CacheEvict(cacheNames = CacheNames.MENU_USER_TREE, key = "#userId")

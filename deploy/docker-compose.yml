@@ -21,6 +21,7 @@ networks:
     driver: bridge
 
 volumes:
+  app-logs:
   mysql-data:
   redis-data:
   nacos-logs:
@@ -39,6 +40,8 @@ x-app-env: &app-env
   SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD}
   SPRING_DATASOURCE_USERNAME: root
   SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+  # 日志落盘目录：logback-base.xml 的 LOG_HOME 读这个值（relaxed binding，不用改 yml）
+  VIDORA_LOG_PATH: /app/logs
 
 # 等待 MySQL / Redis / Nacos 就绪后再启动业务服务
 x-app-depends: &app-depends
@@ -161,6 +164,8 @@ services:
       # 必须与 auth-service 一致，否则网关验签失败
       JWT_SECRET: ${JWT_SECRET}
     depends_on: [nacos]
+    volumes:
+      - app-logs:/app/logs
     networks: [vidora-net]
 
   auth-service:
@@ -177,6 +182,8 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/user_service?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false"
     depends_on: *app-depends
+    volumes:
+      - app-logs:/app/logs
     networks: [vidora-net]
 
   system-service:
@@ -193,6 +200,8 @@ services:
       # 与 auth-service 共用同一套 RBAC 库
       SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/user_service?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false"
     depends_on: *app-depends
+    volumes:
+      - app-logs:/app/logs
     networks: [vidora-net]
 
   video-service:
@@ -232,6 +241,8 @@ services:
         condition: service_started
       rocketmq-broker:
         condition: service_started
+    volumes:
+      - app-logs:/app/logs
     networks: [vidora-net]
 
   content-service:
@@ -247,6 +258,8 @@ services:
       <<: *app-env
       SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/content_service?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false"
     depends_on: *app-depends
+    volumes:
+      - app-logs:/app/logs
     networks: [vidora-net]
 
   interact-service:
@@ -263,6 +276,8 @@ services:
       SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/interact_service?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false"
       ROCKETMQ_NAME_SERVER: rocketmq-namesrv:9876
     depends_on: *app-depends
+    volumes:
+      - app-logs:/app/logs
     networks: [vidora-net]
 
   message-service:
@@ -279,6 +294,8 @@ services:
       SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/message_service?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false"
       ROCKETMQ_NAME_SERVER: rocketmq-namesrv:9876
     depends_on: *app-depends
+    volumes:
+      - app-logs:/app/logs
     networks: [vidora-net]
 
   search-service:
@@ -294,6 +311,8 @@ services:
       <<: *app-env
       SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/search_service?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false"
     depends_on: *app-depends
+    volumes:
+      - app-logs:/app/logs
     networks: [vidora-net]
 
   recommend-service:
@@ -310,4 +329,6 @@ services:
       SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/recommend_service?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false"
       ROCKETMQ_NAME_SERVER: rocketmq-namesrv:9876
     depends_on: *app-depends
+    volumes:
+      - app-logs:/app/logs
     networks: [vidora-net]

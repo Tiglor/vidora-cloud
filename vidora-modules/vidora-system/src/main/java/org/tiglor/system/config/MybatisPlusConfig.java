@@ -9,7 +9,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-@MapperScan("org.tiglor.common.user.mapper")
+// common-log 的 OperLogMapper / LoginLogMapper 刻意不自我装配（不加 @MapperScan），
+// 由唯一读写审计表的进程——本服务——在这里认领；其它服务引入 common-log 只用来上报。
+@MapperScan({"org.tiglor.common.user.mapper", "org.tiglor.common.log.mapper"})
 public class MybatisPlusConfig {
 
     @Bean

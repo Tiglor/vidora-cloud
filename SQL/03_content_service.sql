@@ -23,6 +23,21 @@ CREATE TABLE IF NOT EXISTS `content_category` (
     KEY `idx_status_sort` (`status`, `sort_order`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='视频分类表';
 
+-- 一级分区种子数据
+-- id 必须写死：vidora-web 首页/上传页/顶栏导航至今按 id 1-7 引用分区（见 HomeView.vue、
+-- UploadView.vue、DefaultLayout.vue），换库时如果靠 AUTO_INCREMENT 顺序生成，
+-- 一旦某行被删过，id 就会整体错位，导航点「音乐」出来的是「游戏」的内容。
+-- 首页第一项「推荐」刻意不在这里：它的语义是「不带 categoryId 的全站流」，不是一条分类记录。
+-- 二级分区也不预置 —— 那正是要交给运营在管理端按业务增删的部分。
+INSERT IGNORE INTO `content_category` (`id`, `parent_id`, `name`, `sort_order`, `status`) VALUES
+(1, 0, '动画', 1, 1),
+(2, 0, '番剧', 2, 1),
+(3, 0, '音乐', 3, 1),
+(4, 0, '游戏', 4, 1),
+(5, 0, '科技', 5, 1),
+(6, 0, '生活', 6, 1),
+(7, 0, '影视', 7, 1);
+
 -- 视频标签表
 CREATE TABLE IF NOT EXISTS `content_tag` (
     `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '标签ID',

@@ -14,4 +14,9 @@ public class LoginVO {
     private String avatarUrl;
     private List<String> roles;
     private List<String> permissions;
+    private String clientId;
+    private String clientKey;
+    private Long expiresIn;
+    /** 用户自选主题标识，前端据此决定首屏配色 */
+    private String themeKey;
 }

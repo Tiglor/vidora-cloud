@@ -28,4 +28,6 @@ public class User extends BaseEntity {
     private Integer followCount;
     private Integer followerCount;
     private String region;
+    /** 主题标识，取值见前端主题包；后端只存不解释 */
+    private String themeKey;
 }

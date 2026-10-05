@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.tiglor</groupId>
+        <artifactId>vidora-api</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>vidora-api-system</artifactId>
+    <packaging>jar</packaging>
+
+    <description>
+        system-service（user_service 库）对外发布的调用契约。
+        当前消费者：video-service 经 OpenFeign 取投稿用户的昵称与头像。
+    </description>
+
+    <dependencies>
+        <!-- 只为 ApiResult；不引 spring-web，契约因此不绑定任何传输框架的注解 -->
+        <dependency>
+            <groupId>org.tiglor</groupId>
+            <artifactId>vidora-common-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+    </dependencies>
+</project>

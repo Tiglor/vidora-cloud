@@ -12,6 +12,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.tiglor.common.core.ApiResult;
+import org.tiglor.common.log.annotation.BusinessType;
+import org.tiglor.common.log.annotation.OperLog;
 import org.tiglor.content.dto.FeedConfigRequest;
 import org.tiglor.content.entity.FeedConfig;
 import org.tiglor.content.service.FeedConfigService;
@@ -49,12 +51,14 @@ public class FeedConfigController {
     /** (feedType, configKey) 相同就是改值，不会多出一行 */
     @PutMapping
     @PreAuthorize("hasAuthority('content:feed:manage')")
+    @OperLog(title = "信息流配置", type = BusinessType.UPDATE)
     public ApiResult<FeedConfig> upsert(@Valid @RequestBody FeedConfigRequest request) {
         return ApiResult.ok(service.upsert(request));
     }
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('content:feed:manage')")
+    @OperLog(title = "信息流配置", type = BusinessType.DELETE)
     public ApiResult<Void> delete(@PathVariable Long id) {
         service.delete(id);
         return ApiResult.ok();

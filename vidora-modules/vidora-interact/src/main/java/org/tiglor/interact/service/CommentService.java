@@ -33,6 +33,18 @@ public interface CommentService {
     Page<CommentView> listReplies(Long rootId, long current, long size);
 
     /**
+     * 后台评论管理分页：不限审核态，回复也在内，可按内容关键词与状态过滤。
+     * <p>
+     * 必须和 {@link #listByVideo} 分开：那个只回 status=1 的顶层评论，
+     * 审核者却需要看到「审核中」的和楼中楼里的回复，否则没有下手的地方。
+     * </p>
+     *
+     * @param keyword 评论内容模糊匹配，空白视为不过滤
+     * @param status  审核态精确过滤，null 表示不限
+     */
+    Page<CommentView> pageForAdmin(String keyword, Integer status, long current, long size);
+
+    /**
      * 删除评论（逻辑删除）。作者本人可删自己的，审核者可删任何一条。
      * 删的是回复时会把根评论的 reply_count 减回去。
      */

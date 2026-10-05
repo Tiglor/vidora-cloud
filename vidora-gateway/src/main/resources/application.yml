@@ -34,6 +34,14 @@ spring:
                 - Path=/api/auth/**
               filters:
                 - StripPrefix=1
+            - id: profile-service
+              uri: lb://auth-service
+              predicates:
+                # 用户自助偏好设置（改主题等）。和 /api/auth/** 同一个服务，但这条路径要登录：
+                # 它不在网关白名单里，也不在 ADMIN_PATH_PREFIXES 里，所以 web 和 admin 都能调
+                - Path=/api/profile/**
+              filters:
+                - StripPrefix=1
             - id: user-menu-service
               uri: lb://system-service
               predicates:
@@ -50,6 +58,20 @@ spring:
               uri: lb://system-service
               predicates:
                 - Path=/api/users/**
+              filters:
+                - StripPrefix=1
+            - id: system-client-service
+              uri: lb://system-service
+              predicates:
+                - Path=/api/clients/**
+              filters:
+                - StripPrefix=1
+            - id: system-log-service
+              uri: lb://system-service
+              predicates:
+                # 操作日志 / 登录日志查询，只有 read 接口（没有删除与清空）。
+                # 「仅限管理端」由 GatewayAuthFilter 的 ADMIN_PATH_PREFIXES 判定，不靠路由
+                - Path=/api/oper-logs/**,/api/login-logs/**
               filters:
                 - StripPrefix=1
             - id: video-service
@@ -108,7 +130,9 @@ jwt:
   secret: ${JWT_SECRET:vidora-cloud-dev-only-secret-key-change-me-32bytes-min}
   expire-seconds: 604800
 
-# Logging
+# 日志：落盘目录、分级文件（app / error / audit）、滚动与保留策略统一在
+# common-core 的 logback-base.xml 里定义，产物落在 logs/<服务名>/ 下；
+# 容器里用环境变量 VIDORA_LOG_PATH 指到日志卷。这里只调级别。
 logging:
   level:
     root: info

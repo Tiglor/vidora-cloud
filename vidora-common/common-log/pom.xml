@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.tiglor</groupId>
+        <artifactId>vidora-common</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>vidora-common-log</artifactId>
+    <packaging>jar</packaging>
+
+    <description>
+        统一日志基础设施：logback 分级滚动配置、traceId 透传、@OperLog 操作审计切面与上报。
+        只放 Servlet 侧的自动配置，网关（WebFlux）仅复用其中的 logback-base.xml。
+    </description>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.tiglor</groupId>
+            <artifactId>vidora-common-core</artifactId>
+        </dependency>
+        <!-- 操作审计是环绕通知，需要 AspectJ。Boot 4 把 starter-aop 改名成了 starter-aspectj，
+             沿用旧坐标会因为 BOM 里没有版本而直接构建失败 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-aspectj</artifactId>
+        </dependency>
+        <!-- 上报走 Nacos 服务发现，需要 LoadBalancerInterceptor 解析 http://system-service -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-commons</artifactId>
+        </dependency>
+        <!-- 审计流水要把含 LocalDateTime 的实体序列化成 JSON。
+             Boot 4 的 starter-web 带的是 Jackson 3，本项目沿用 com.fasterxml 的 Jackson 2，
+             少了这个模块 ObjectMapper 遇到 LocalDateTime 直接抛 InvalidDefinitionException -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+    </dependencies>
+</project>

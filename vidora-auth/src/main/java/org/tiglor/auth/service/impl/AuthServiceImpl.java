@@ -4,11 +4,13 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.StringUtils;
 import org.tiglor.auth.dto.UserLoginDTO;
 import org.tiglor.auth.dto.UserRegisterDTO;
+import org.tiglor.common.user.entity.Client;
 import org.tiglor.common.user.entity.Menu;
 import org.tiglor.common.user.entity.Role;
 import org.tiglor.common.user.entity.RoleMenu;
 import org.tiglor.common.user.entity.User;
 import org.tiglor.common.user.entity.UserRole;
+import org.tiglor.common.user.mapper.ClientMapper;
 import org.tiglor.common.user.mapper.MenuMapper;
 import org.tiglor.common.user.mapper.RoleMapper;
 import org.tiglor.common.user.mapper.RoleMenuMapper;
@@ -39,6 +41,7 @@ public class AuthServiceImpl implements AuthService {
     private final RoleMapper roleMapper;
     private final RoleMenuMapper roleMenuMapper;
     private final MenuMapper menuMapper;
+    private final ClientMapper clientMapper;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
 
@@ -53,9 +56,21 @@ public class AuthServiceImpl implements AuthService {
             throw new BizException(ResultCode.FORBIDDEN, "账号已被禁用");
         }
 
+        // 校验客户端
+        Client client = clientMapper.selectOne(
+                new LambdaQueryWrapper<Client>().eq(Client::getClientId, dto.getClientId()));
+        if (client == null || client.getStatus() == null || client.getStatus() != 1) {
+            throw new BizException(ResultCode.VALIDATE_FAILED, "客户端未注册或已停用");
+        }
+        if (client.getGrantType() == null || !client.getGrantType().contains("password")) {
+            throw new BizException(ResultCode.VALIDATE_FAILED, "该客户端不支持密码登录");
+        }
+
         List<String> roles = loadRoleCodes(user.getId());
         List<String> permissions = loadPermissionCodes(user.getId());
-        String token = jwtUtil.generateToken(user.getId(), String.join(",", roles), String.join(",", permissions));
+        String token = jwtUtil.generateToken(
+                user.getId(), String.join(",", roles), String.join(",", permissions),
+                client.getClientId(), client.getClientKey(), client.getTimeout());
 
         LoginVO vo = new LoginVO();
         vo.setToken(token);
@@ -64,6 +79,11 @@ public class AuthServiceImpl implements AuthService {
         vo.setAvatarUrl(user.getAvatarUrl());
         vo.setRoles(roles);
         vo.setPermissions(permissions);
+        vo.setClientId(client.getClientId());
+        vo.setClientKey(client.getClientKey());
+        vo.setExpiresIn((long) client.getTimeout());
+        // 主题随登录一起回来：省掉一次「登录后再拉偏好」的请求，也避免首屏先闪一下默认色
+        vo.setThemeKey(user.getThemeKey());
         return vo;
     }
 

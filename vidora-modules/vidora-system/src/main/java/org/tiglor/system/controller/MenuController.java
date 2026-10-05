@@ -2,6 +2,8 @@ package org.tiglor.system.controller;
 
 import org.tiglor.common.core.ApiResult;
 import org.tiglor.common.core.security.UserContext;
+import org.tiglor.common.log.annotation.BusinessType;
+import org.tiglor.common.log.annotation.OperLog;
 import org.tiglor.common.user.entity.Menu;
 import org.tiglor.system.service.MenuService;
 import org.tiglor.system.vo.MenuVO;
@@ -51,6 +53,7 @@ public class MenuController {
     /** 给角色授权菜单（全量覆盖） */
     @PostMapping("/role/{roleId}")
     @PreAuthorize("hasAuthority('menu:assign')")
+    @OperLog(title = "菜单管理", type = BusinessType.GRANT)
     public ApiResult<Boolean> assignToRole(@PathVariable Long roleId, @RequestBody List<Long> menuIds) {
         menuService.assignMenusToRole(roleId, menuIds);
         return ApiResult.ok(true);
@@ -58,12 +61,14 @@ public class MenuController {
 
     @PostMapping
     @PreAuthorize("hasAuthority('menu:add')")
+    @OperLog(title = "菜单管理", type = BusinessType.INSERT)
     public ApiResult<Boolean> create(@RequestBody Menu menu) {
         return ApiResult.ok(menuService.save(menu));
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('menu:edit')")
+    @OperLog(title = "菜单管理", type = BusinessType.UPDATE)
     public ApiResult<Boolean> update(@PathVariable Long id, @RequestBody Menu menu) {
         menu.setId(id);
         return ApiResult.ok(menuService.updateById(menu));
@@ -71,6 +76,7 @@ public class MenuController {
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('menu:delete')")
+    @OperLog(title = "菜单管理", type = BusinessType.DELETE)
     public ApiResult<Boolean> remove(@PathVariable Long id) {
         return ApiResult.ok(menuService.removeById(id));
     }

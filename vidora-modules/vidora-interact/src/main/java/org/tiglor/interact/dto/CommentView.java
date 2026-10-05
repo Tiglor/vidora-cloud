@@ -23,6 +23,10 @@ public class CommentView {
     private String content;
     private Long likeCount;
     private Integer replyCount;
+
+    /** 审核态：1-正常 2-审核中。用户端接口只会返回 1，这个字段是给后台评论管理列表用的 */
+    private Integer status;
+
     private LocalDateTime createTime;
 
     /** 仅顶层评论填充：第一页回复，更多回复走 {@code GET /comments/replies} 翻页 */

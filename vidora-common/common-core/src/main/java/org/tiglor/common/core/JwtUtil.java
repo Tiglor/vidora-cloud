@@ -29,6 +29,8 @@ public class JwtUtil {
     public static final String CLAIM_USER_ID = "userId";
     public static final String CLAIM_ROLES = "roles";
     public static final String CLAIM_PERMS = "perms";
+    public static final String CLAIM_CLIENT_ID = "clientId";
+    public static final String CLAIM_CLIENT_KEY = "clientKey";
 
     private final SecretKey key;
     private final long expireMillis;
@@ -38,17 +40,29 @@ public class JwtUtil {
         this.expireMillis = properties.getExpireSeconds() * 1000L;
     }
 
-    /** 签发 Token（带角色与权限） */
+    /** 签发 Token（默认过期时间，无客户端标识） */
     public String generateToken(Long userId, String roles, String perms) {
+        return generateToken(userId, roles, perms, null, null, expireMillis / 1000L);
+    }
+
+    /** 签发 Token（指定客户端标识与过期时间） */
+    public String generateToken(Long userId, String roles, String perms,
+                                String clientId, String clientKey, long expireSeconds) {
         Map<String, Object> claims = new HashMap<>();
         claims.put(CLAIM_USER_ID, userId);
         claims.put(CLAIM_ROLES, roles == null ? "" : roles);
         claims.put(CLAIM_PERMS, perms == null ? "" : perms);
+        if (clientId != null) {
+            claims.put(CLAIM_CLIENT_ID, clientId);
+        }
+        if (clientKey != null) {
+            claims.put(CLAIM_CLIENT_KEY, clientKey);
+        }
         Date now = new Date();
         return Jwts.builder()
                 .claims(claims)
                 .issuedAt(now)
-                .expiration(new Date(now.getTime() + expireMillis))
+                .expiration(new Date(now.getTime() + expireSeconds * 1000L))
                 .signWith(key)
                 .compact();
     }

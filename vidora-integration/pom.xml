@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.tiglor</groupId>
+        <artifactId>vidora-cloud</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>vidora-integration</artifactId>
+    <packaging>jar</packaging>
+
+    <description>
+        第三方服务适配层（防腐层）：所有对平台外部系统的调用连同各自的客户端、超时与降级都落在这里。
+        内部服务间调用不放这里（见 vidora-api）。目前尚无真实外部调用方，模块先立边界，
+        第一个入驻的应该是内容安全审核或云转码（见 docs/ARCHITECTURE.md 第 8 节）。
+    </description>
+</project>

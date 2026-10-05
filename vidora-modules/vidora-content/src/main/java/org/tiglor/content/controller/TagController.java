@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.tiglor.common.core.ApiResult;
+import org.tiglor.common.log.annotation.BusinessType;
+import org.tiglor.common.log.annotation.OperLog;
 import org.tiglor.content.dto.TagRequest;
 import org.tiglor.content.entity.Tag;
 import org.tiglor.content.service.TagService;
@@ -58,6 +60,7 @@ public class TagController {
 
     @PostMapping
     @PreAuthorize("hasAuthority('content:tag:manage')")
+    @OperLog(title = "标签管理", type = BusinessType.INSERT)
     public ApiResult<Tag> create(@Valid @RequestBody TagRequest request) {
         return ApiResult.ok(service.create(request.getName()));
     }
@@ -65,6 +68,7 @@ public class TagController {
     /** 禁用(0) / 启用(1) */
     @PutMapping("/{id}/status")
     @PreAuthorize("hasAuthority('content:tag:manage')")
+    @OperLog(title = "标签管理", type = BusinessType.CHANGE_STATUS)
     public ApiResult<Void> setStatus(@PathVariable Long id, @RequestParam int status) {
         service.setStatus(id, status);
         return ApiResult.ok();
@@ -73,6 +77,7 @@ public class TagController {
     /** 只有没人用的标签才允许删除，还在用的请改成禁用 */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('content:tag:manage')")
+    @OperLog(title = "标签管理", type = BusinessType.DELETE)
     public ApiResult<Void> delete(@PathVariable Long id) {
         service.delete(id);
         return ApiResult.ok();

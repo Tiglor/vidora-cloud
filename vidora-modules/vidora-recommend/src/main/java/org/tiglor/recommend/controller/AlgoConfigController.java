@@ -13,6 +13,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.tiglor.common.core.ApiResult;
+import org.tiglor.common.log.annotation.BusinessType;
+import org.tiglor.common.log.annotation.OperLog;
 import org.tiglor.recommend.dto.AlgoConfigRequest;
 import org.tiglor.recommend.entity.AlgoConfig;
 import org.tiglor.recommend.enums.AlgoType;
@@ -63,6 +65,7 @@ public class AlgoConfigController {
     /** (scene, algoType, configKey) 相同就是改值，不会多出一行；不会改动 status */
     @PutMapping
     @PreAuthorize("hasAuthority('recommend:manage')")
+    @OperLog(title = "算法配置", type = BusinessType.UPDATE)
     public ApiResult<AlgoConfig> upsert(@Valid @RequestBody AlgoConfigRequest request) {
         return ApiResult.ok(service.upsert(request));
     }
@@ -70,6 +73,7 @@ public class AlgoConfigController {
     /** 禁用(0) / 启用(1)。禁用意味着算法回落到默认参数 */
     @PutMapping("/{id}/status")
     @PreAuthorize("hasAuthority('recommend:manage')")
+    @OperLog(title = "算法配置", type = BusinessType.CHANGE_STATUS)
     public ApiResult<Void> setStatus(@PathVariable Long id, @RequestParam int status) {
         service.setStatus(id, status);
         return ApiResult.ok();
@@ -77,6 +81,7 @@ public class AlgoConfigController {
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('recommend:manage')")
+    @OperLog(title = "算法配置", type = BusinessType.DELETE)
     public ApiResult<Void> delete(@PathVariable Long id) {
         service.delete(id);
         return ApiResult.ok();

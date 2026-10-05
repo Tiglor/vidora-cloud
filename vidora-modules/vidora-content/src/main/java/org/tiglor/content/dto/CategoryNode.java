@@ -3,6 +3,7 @@ package org.tiglor.content.dto;
 import lombok.Data;
 import org.tiglor.content.entity.Category;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -22,6 +23,7 @@ public class CategoryNode {
     private String iconUrl;
     private Integer sortOrder;
     private Integer status;
+    private LocalDateTime createTime;
     private List<CategoryNode> children = new ArrayList<>();
 
     public static CategoryNode of(Category category) {
@@ -32,6 +34,7 @@ public class CategoryNode {
         node.setIconUrl(category.getIconUrl());
         node.setSortOrder(category.getSortOrder());
         node.setStatus(category.getStatus());
+        node.setCreateTime(category.getCreateTime());
         return node;
     }
 }

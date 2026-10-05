@@ -17,6 +17,17 @@ public interface HotSearchService extends IService<HotSearch> {
     List<HotSearch> board(LocalDate date);
 
     /**
+     * 管理端看板：某天全部词条，含下线的。
+     * <p>
+     * 不能复用 {@link #board}——它按 {@code status=1} 过滤，敏感词一下线就从界面上消失，
+     * 而重新上线需要带 {@code id} 调 {@link #setStatus}，那个 id 已经没有任何地方能查到了。
+     * </p>
+     *
+     * @param status null 表示上下线都要
+     */
+    List<HotSearch> adminBoard(LocalDate date, Integer status);
+
+    /**
      * 按热度重算某天的排名，返回真正发生变化的行数。
      * <p>
      * 排序键是 {@code heat_score DESC, search_count DESC, id ASC}——最后那个 id 是必需的：

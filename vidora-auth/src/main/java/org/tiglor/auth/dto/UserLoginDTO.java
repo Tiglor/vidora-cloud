@@ -11,4 +11,7 @@ public class UserLoginDTO {
 
     @NotBlank(message = "密码不能为空")
     private String password;
+
+    @NotBlank(message = "客户端ID不能为空")
+    private String clientId;
 }
