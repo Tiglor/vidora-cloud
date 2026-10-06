@@ -25,6 +25,17 @@ public class MultipartInitRequest {
     public static final int MAX_CHUNKS = 10_000;
 
     /**
+     * 单文件字节数上限，就是上面那条「10000 片 × 5 MiB」推出来的 50 GiB。
+     * <p>
+     * 这个上限同时挡住整型溢出：{@code fileSize} 是客户端给的，不设上限就能传
+     * {@code Long.MAX_VALUE}，此时 {@code fileSize + chunkSize - 1} 先溢出成负数，
+     * 再被 {@code (int)} 截断成一个负的 totalChunks，反而绕过了 MAX_CHUNKS 检查，
+     * 最后往库里塞一条总分片数为负的会话记录。
+     * </p>
+     */
+    public static final long MAX_FILE_SIZE = 50L * 1024 * 1024 * 1024;
+
+    /**
      * 原始文件名，只用作标题兜底和对象名后缀，不参与路径解析。
      * <p>超过 200 字符服务端截断；后缀必须是纯字母数字才保留，否则拼出来的对象名不带扩展名。</p>
      */
@@ -40,6 +51,7 @@ public class MultipartInitRequest {
     /** 整文件字节数，必须与实际切片后的总和对得上，否则最后一片会因大小不符被拒收 */
     @NotNull(message = "文件大小不能为空")
     @Positive(message = "文件大小必须大于 0")
+    @Max(value = MAX_FILE_SIZE, message = "文件大小不能超过 50GB")
     private Long fileSize;
 
     /** 前端切片大小，必须 >= 5 MiB 且能整除 fileSize 之外允许最后一片不足 */

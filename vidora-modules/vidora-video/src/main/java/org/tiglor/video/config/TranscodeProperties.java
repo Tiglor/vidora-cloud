@@ -42,6 +42,21 @@ public class TranscodeProperties {
     /** 单任务最大重试次数 */
     private int maxRetry = 2;
 
+    /**
+     * 判定「处理中」任务已僵死的阈值（分钟）：距上次进度写入超过这个时长就认为执行进程没了。
+     * <p>
+     * 判据是 update_time —— {@code TranscodeTaskRunner.doTranscode} 每过一个阶段都会
+     * updateById 刷进度（5→20→70→90→100），MyBatis-Plus 的 AutoFillHandler 顺带把
+     * update_time 写成当前时间，所以它冻结不动就说明没人在推进这个任务。
+     * </p>
+     * <p>
+     * 缺省 30 分钟是刻意给宽的：ffmpeg 那一步（进度 20→70）对长视频本来就可能跑十几分钟，
+     * 期间一次库都不写。阈值短了会把健康任务误判成僵死，结果同一个任务被两个进程同时转码，
+     * 抢着往同一个 outDir 和对象前缀里写。宁可让真僵死的任务多等一会儿。
+     * </p>
+     */
+    private int staleProcessingMinutes = 30;
+
     /** 清晰度阶梯（ABR ladder），按分辨率从高到低 */
     private List<Rendition> renditions = defaultRenditions();
 

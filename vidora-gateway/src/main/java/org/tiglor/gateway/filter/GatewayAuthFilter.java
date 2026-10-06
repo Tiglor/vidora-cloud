@@ -3,6 +3,7 @@ package org.tiglor.gateway.filter;
 import io.jsonwebtoken.Claims;
 import org.tiglor.common.core.JwtUtil;
 import org.tiglor.common.core.security.SecurityHeaders;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
@@ -27,14 +28,17 @@ import java.util.regex.Pattern;
  * - 白名单：/api/auth/** 直接放行（登录/注册无需 Token）
  * - 其余请求须携带 Authorization: Bearer <token>，校验失败返回 401
  * - 校验通过后，将 userId / clientId 以请求头透传给下游微服务
- * - 管理接口仅允许 clientKey=admin 的 Token 访问，否则返回 403
+ * - 管理接口仅允许管理端客户端的 Token 访问，否则返回 403；
+ *   管理端的 clientKey 缺省是 admin，可用 {@code gateway.admin-client-key} 覆盖
  * </p>
  */
 @Component
 public class GatewayAuthFilter implements GlobalFilter, Ordered {
 
     private static final String AUTH_PREFIX = "Bearer ";
-    private static final String ADMIN_CLIENT_KEY = "admin";
+
+    /** 管理端客户端标识的默认值，与 SQL 种子里 sys_client.client_key='admin' 那行对齐 */
+    private static final String DEFAULT_ADMIN_CLIENT_KEY = "admin";
 
     /** 视频详情路径：/api/videos/{数字id} 及其子路径（如 /owner、/play-url、/download） */
     private static final Pattern VIDEO_DETAIL_PATH = Pattern.compile("^/api/videos/\\d+(/.*)?$");
@@ -60,7 +64,10 @@ public class GatewayAuthFilter implements GlobalFilter, Ordered {
             "/api/danmaku/video/"
     );
 
-    /** 仅限管理端（clientKey=admin）访问的接口前缀 */
+    /**
+     * 仅限管理端访问的接口前缀。判定用的 clientKey 是 {@code gateway.admin-client-key}
+     * （缺省 {@value #DEFAULT_ADMIN_CLIENT_KEY}），必须和 {@code sys_client.client_key} 里管理端那行一致。
+     */
     private static final Set<String> ADMIN_PATH_PREFIXES = Set.of(
             "/api/users/",
             "/api/roles/",
@@ -83,8 +90,17 @@ public class GatewayAuthFilter implements GlobalFilter, Ordered {
 
     private final JwtUtil jwtUtil;
 
-    public GatewayAuthFilter(JwtUtil jwtUtil) {
+    /**
+     * 管理端客户端标识，必须和 {@code sys_client.client_key} 里管理端那行一致。
+     * <p>做成可配置是因为它耦合的是库里的数据：运维在「客户端管理」页把这个 key 改掉之后，
+     * 写死在代码里的旧值会让所有管理接口静默 403，只能重新发版才修得回来。</p>
+     */
+    private final String adminClientKey;
+
+    public GatewayAuthFilter(JwtUtil jwtUtil,
+                             @Value("${gateway.admin-client-key:" + DEFAULT_ADMIN_CLIENT_KEY + "}") String adminClientKey) {
         this.jwtUtil = jwtUtil;
+        this.adminClientKey = adminClientKey;
     }
 
     @Override
@@ -117,7 +133,7 @@ public class GatewayAuthFilter implements GlobalFilter, Ordered {
             String clientKey = JwtUtil.claimString(claims, JwtUtil.CLAIM_CLIENT_KEY);
 
             // 4. 管理接口拦截：非 admin 客户端禁止访问
-            if (isAdminPath(path) && !ADMIN_CLIENT_KEY.equals(clientKey)) {
+            if (isAdminPath(path) && !adminClientKey.equals(clientKey)) {
                 return forbidden(exchange);
             }
 

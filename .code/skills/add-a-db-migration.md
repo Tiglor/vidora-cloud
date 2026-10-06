@@ -14,7 +14,7 @@
 
 | 节 | 表归属服务 | 表 |
 | --- | --- | --- |
-| 一、用户与权限 | system-service | sys_user / sys_role / sys_menu / sys_user_role / sys_role_menu / sys_client / user_tag / user_follow / user_oauth_bind + 全部 RBAC 菜单与客户端种子（auth-service 不连库，经 Dubbo 向 system-service 取） |
+| 一、用户与权限 | system-service | sys_user / sys_role / sys_menu / sys_user_role / sys_role_menu / sys_client / user_tag / user_follow / user_oauth_bind + 全部 RBAC 菜单与客户端种子 + 两个登录账号种子（`sys_user` id=1 管理员 / id=2 普通用户，配 `sys_user_role` 授权；auth-service 不连库，经 Dubbo 向 system-service 取） |
 | 二、审计日志 | 写入方是全部业务服务，查询在 system-service | sys_oper_log / sys_login_log + 日志菜单种子（id 49–53） |
 | 三、视频与转码 | video-service | video_info / video_transcode_task / video_multipart_upload / video_audit_record |
 | 四、内容运营 | content-service | content_category / content_tag / content_feed_config / content_hot_search / content_security_audit + 一级分区种子 |

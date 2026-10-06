@@ -156,7 +156,10 @@ public class VideoInfoServiceImpl extends ServiceImpl<VideoInfoMapper, VideoInfo
         if (StringUtils.isNotBlank(video.getStoragePath())) {
             return storageService.downloadUrl(video.getStoragePath());
         }
-        return "https://cdn.example.com/" + video.getVideoKey() + "/index.m3u8";
+        // 两个地址都空 = 库里有条视频记录但没有任何可播文件（元数据建了、上传没成或转码没跑完）。
+        // 这里绝不能兜一个占位 URL：前端会拿着它去请求，表现成「播放器 404」甚至「CDN 挂了」，
+        // 把「数据不完整」这个真因藏到网络层里去
+        throw new BizException(ResultCode.NOT_FOUND, "视频没有可播放的文件：" + id);
     }
 
     // ---------- 写入：失效该视频的播放地址缓存 ----------

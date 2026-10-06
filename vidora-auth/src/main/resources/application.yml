@@ -1,4 +1,4 @@
-server:
+﻿server:
   port: 8101
 
 spring:
@@ -30,6 +30,14 @@ dubbo:
     qos-enable: false
   registry:
     address: ${DUBBO_REGISTRY_ADDRESS:nacos://127.0.0.1:8848}
+    # 别把这两行改回 dubbo.config-center.enabled / dubbo.metadata-report.enabled：
+    # Dubbo 3.3.6 的 ConfigCenterConfig / MetadataReportConfig 根本没有 enabled 字段，
+    # 写上去会被配置绑定静默忽略，看起来禁用了其实没有。真正的开关在 RegistryConfig 上。
+    # 不关的后果：DefaultApplicationDeployer 发现没有显式 config center，就把 registry
+    # 提升成 config center + metadata report 去连 Nacos 的这两套接口，server status check
+    # 失败即抛 IllegalStateException，服务直接起不来（本项目不用配置中心，配置全在 yml 里）。
+    use-as-config-center: false
+    use-as-metadata-center: false
   consumer:
     # 启动时 provider 不在线也不要报错。否则 system-service 没起来时 auth 根本启动不了，
     # 排障时就看不到「auth 活着、但登录报 no provider」这个更有信息量的状态
@@ -60,3 +68,4 @@ springdoc:
 logging:
   level:
     root: info
+

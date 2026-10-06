@@ -50,7 +50,9 @@
             <maxFileSize>${MAX_FILE_SIZE}</maxFileSize>
             <maxHistory>${MAX_HISTORY}</maxHistory>
             <totalSizeCap>${TOTAL_SIZE_CAP}</totalSizeCap>
-            <cleanHistoryOnLimit>true</cleanHistoryOnLimit>
+            <!-- 不要加 cleanHistoryOnLimit：logback 没有这个属性（TimeBasedRollingPolicy 只有
+                 cleanHistoryOnStart），写了会被当成未知属性静默忽略。maxHistory / totalSizeCap
+                 的清理本来就在每次滚动时做，不需要额外开关 -->
         </rollingPolicy>
         <encoder>
             <pattern>${LOG_PATTERN}</pattern>
@@ -71,7 +73,6 @@
             <!-- 错误日志留得比全量久：出过一次的问题要能在几周后回溯到 -->
             <maxHistory>90</maxHistory>
             <totalSizeCap>${TOTAL_SIZE_CAP}</totalSizeCap>
-            <cleanHistoryOnLimit>true</cleanHistoryOnLimit>
         </rollingPolicy>
         <encoder>
             <pattern>${LOG_PATTERN}</pattern>

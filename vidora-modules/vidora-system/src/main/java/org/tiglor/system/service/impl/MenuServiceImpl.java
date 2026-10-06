@@ -8,6 +8,8 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.tiglor.common.core.BizException;
+import org.tiglor.common.core.ResultCode;
 import org.tiglor.common.redis.CacheNames;
 import org.tiglor.system.entity.Menu;
 import org.tiglor.system.entity.RoleMenu;
@@ -88,8 +90,18 @@ public class MenuServiceImpl extends ServiceImpl<MenuMapper, Menu> implements Me
         if (menuIds == null || menuIds.isEmpty()) {
             return;
         }
+        // 去重：uk_role_menu(role_id, menu_id) 是唯一键，同一个 id 传两次会在第二次插入时炸 500
+        List<Long> targetIds = menuIds.stream().distinct().toList();
+        // 存在性校验：sys_role_menu 上没有外键，不校验就能插进指向不存在菜单的脏行，
+        // 之后授权树里少一块却查不出原因。listByIds 带逻辑删除过滤，
+        // 所以已删除的菜单同样授不出去——这是想要的结果，不是副作用
+        List<Long> existingIds = listByIds(targetIds).stream().map(Menu::getId).toList();
+        if (existingIds.size() != targetIds.size()) {
+            List<Long> missing = targetIds.stream().filter(id -> !existingIds.contains(id)).toList();
+            throw new BizException(ResultCode.VALIDATE_FAILED, "菜单不存在或已删除：" + missing);
+        }
         LocalDateTime now = LocalDateTime.now();
-        for (Long menuId : menuIds) {
+        for (Long menuId : targetIds) {
             RoleMenu rm = new RoleMenu();
             rm.setRoleId(roleId);
             rm.setMenuId(menuId);

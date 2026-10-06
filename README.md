@@ -184,7 +184,7 @@ Nacos 当前**只做服务注册与发现**，没有接配置中心：每个服�
 | 视频上传 | POST /api/videos/upload | `video:upload` | 落存储 + 探测元信息；`transcode.enabled=true` 时自动提交异步转码 |
 | 提交转码任务 | POST /api/videos/{id}/transcode | `video:transcode` | 手动触发，返回任务 ID |
 | 查询转码任务 | GET /api/videos/{id}/transcode-task | 登录 | 轮询状态(0待处理/1处理中/2成功/3失败)与进度 |
-| 播放地址 | GET /api/videos/{id}/play-url | 登录 | 转码成功后返回 `master.m3u8` 公共地址，否则返回源文件地址 |
+| 播放地址 | GET /api/videos/{id}/play-url | 登录 | 转码成功后返回 `master.m3u8` 公共地址，否则返回源文件地址；两个地址都没有（记录建了但文件没上传成功）返回 404，不再兜占位 URL |
 | 下载地址 | GET /api/videos/{id}/download | 登录 | MinIO 为限时预签名 URL |
 | 评论列表 | GET /api/comments/video/{videoId} | 登录 | 按视频分页查询顶层评论 |
 | 发布评论 | POST /api/comments | 登录 | 服务端从 JWT 透传身份，不信任客户端 userId |

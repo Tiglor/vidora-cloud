@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.spring.service.impl.ServiceImpl;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.tiglor.common.core.BizException;
 import org.tiglor.common.core.ResultCode;
 import org.tiglor.interact.dto.CommentCreateRequest;
@@ -40,7 +41,10 @@ public class CommentServiceImpl extends ServiceImpl<CommentMapper, Comment> impl
 
     private final PlayCountService playCountService;
 
+    // 三次写库（评论本体、根评论 reply_count、视频 comment_count）必须同生共死：
+    // 没有事务时中间任一步炸了就留下永久对不上的计数，而这里没有任何补偿机制
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public CommentView publish(CommentCreateRequest request, Long userId) {
         requireUserId(userId);
         long parentId = request.getParentId() == null ? TOP_LEVEL : request.getParentId();
@@ -129,7 +133,10 @@ public class CommentServiceImpl extends ServiceImpl<CommentMapper, Comment> impl
         return toViewPage(page, false);
     }
 
+    // 与 publish 对称：删评论本体、减根评论 reply_count、减视频 comment_count 三步同一个事务，
+    // 否则评论真没了而计数各多 1，偏差永久留在库里
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void delete(Long commentId, Long userId, boolean moderator) {
         requireUserId(userId);
         Comment comment = getById(commentId);

@@ -51,7 +51,10 @@
 ### 3. 加 ADMIN_PATH_PREFIXES
 
 ```java
-    /** 仅限管理端（clientKey=admin）访问的接口前缀 */
+    /**
+     * 仅限管理端访问的接口前缀。判定用的 clientKey 是 {@code gateway.admin-client-key}
+     * （缺省 admin），必须和 {@code sys_client.client_key} 里管理端那行一致。
+     */
     private static final Set<String> ADMIN_PATH_PREFIXES = Set.of(
             "/api/users/",
             // ...
@@ -62,6 +65,8 @@
 ```
 
 每个新前缀一行，并留一句「为什么这个要锁」（照抄上面注释的语气）。`Set.of` 重复元素会抛异常，加完编译一次就能确认没撞车。
+
+**这张名单锁的是 clientKey，不是角色。** 比对值来自网关配置 `gateway.admin-client-key`（容器里用 `GATEWAY_ADMIN_CLIENT_KEY` 覆盖，缺省 `admin`），必须和 `sys_client` 表里管理端那行的 `client_key` 字面一致。在管理端「客户端管理」页改了这个 key 而没同步网关配置，症状是**所有管理接口一律 403**，而且日志里只有网关那一行拒绝记录、看不出是配置对不上。
 
 **同时检查另外三张名单会不会误放行它**（`GatewayAuthFilter` 顶部）：`PUBLIC_GET_PATHS`（精确）、`PUBLIC_GET_PREFIXES`（前缀）、`VIDEO_DETAIL_PATH`（正则）。匿名白名单**判定在前且命中即放行、不解析 token** —— 如果你的新路径恰好落进某个公开前缀，第 2 层的 403 根本不会执行。例：想锁 `/api/search/suggests/admin/`，而 `/api/search/suggests` 已在 `PUBLIC_GET_PATHS` 上，就得逐条核对匹配关系。
 

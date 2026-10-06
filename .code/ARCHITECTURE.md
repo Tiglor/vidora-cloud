@@ -168,12 +168,25 @@ org.tiglor.{module}.{service}/
   （其 `getPrefix()` 返回 `nacos:`）只要发现该 starter 在 classpath 上、而 `spring.config.import` 里又没有 `nacos:` 条目，
   就让服务**启动直接失败**。所以「删掉 import 但留着依赖」是个会让 9 个服务全起不来的陷阱。
   依赖删掉后这个失败模式不可能再发生；`nacos-discovery` 保留，父 POM 里 Nacos 3.2.4 全家桶的版本覆盖也保留。
+- **「不用配置中心」对 Dubbo 要显式声明，否则服务起不来。** Dubbo 的 `DefaultApplicationDeployer` 在部署期会跑
+  `useRegistryAsConfigCenterIfNecessary()` / `useRegistryAsMetadataCenterIfNecessary()`：只要没有显式配置中心、
+  且 `Environment.getDynamicConfiguration()` 为空，它就把 registry **提升**成 config center + metadata report
+  去连 Nacos 的这两套接口，server status check 失败即抛 `IllegalStateException`（auth-service / system-service
+  这两个用 Dubbo 的服务会直接启动失败，本机 Nacos 2.3.2 的 health endpoint 不被 Dubbo 3.3.6 认可）。
+  关掉它的开关是 `dubbo.registry.use-as-config-center: false` 与 `use-as-metadata-center: false`。
+  **不要写成 `dubbo.config-center.enabled: false` / `dubbo.metadata-report.enabled: false`**：
+  Dubbo 3.3.6 的 `ConfigCenterConfig` / `MetadataReportConfig` 只有 `check` 字段、**没有 `enabled`**，
+  这两种写法会被配置绑定静默忽略，看起来禁用了其实没有——这个坑在 `vidora-auth/src/main/resources/application.yml`
+  的注释里也留了一份。
 - **重新启用配置中心的步骤**：
   1. 9 个 pom 加回 `spring-cloud-starter-alibaba-nacos-config`；
   2. 每个 `application.yml` 加回 `spring.cloud.nacos.config.server-addr` 与 `file-extension: yml`；
   3. 加回 `spring.config.import: - optional:nacos:${spring.application.name}.yml`
      （`optional:` 前缀保证 Nacos 未就绪时仍能启动，仅告警）；
-  4. dataId 约定为 `<服务名>.yml`，放 public 命名空间；生产可改 `spring.cloud.nacos.config.namespace` 指定命名空间。
+  4. dataId 约定为 `<服务名>.yml`，放 public 命名空间；生产可改 `spring.cloud.nacos.config.namespace` 指定命名空间；
+  5. 若还要让 **Dubbo** 也从配置中心读，把 auth / system 两个服务 `dubbo.registry` 下的
+     `use-as-config-center` / `use-as-metadata-center` 翻回 `true`——它们目前是刻意关掉的（见上一条），
+     只翻 Spring 那一半会出现「Spring 读到了 Nacos 配置、Dubbo 还在用 yml 里的值」这种半生效状态。
 
   那些分段注释就是为这一步留的切割线：按段拆回 `application-{concern}.yml` 即可与 dataId 一一对应。
 - 凭据与地址一律写成 `${环境变量:开发默认值}`（`jwt.secret`、数据库/Redis 口令、MinIO AK/SK、`rocketmq.*`），
@@ -421,7 +434,18 @@ RPC 契约有三条硬约束，都是踩过或推演过才定下的：
   - MQ 路径：抛异常 → 返回 `RECONSUME_LATER`，由 broker 按退避重投；重投次数达到 `rocketmq.max-reconsume-times`（默认 3）后置 `FAILED` 并 ack，避免任务永远停在「处理中」。
   - 本地路径：按 `transcode.max-retry`（默认 2）在同一线程内重试，耗尽后置 `FAILED`。
   - `video_transcode_task.retry_count` 记录重入次数（领取时已是「处理中」即视为一次重试），便于排查反复失败的任务。
-- **幂等**：MQ 是至少一次投递，`TranscodeTaskRunner.run` 对已是终态（成功/失败）的任务直接跳过；`submit` 本身也对同视频的进行中任务做幂等返回。
+- **幂等与僵死接管**：MQ 是至少一次投递，`TranscodeTaskRunner.run` 对已是终态（成功/失败）的任务直接跳过；
+  `submit` 对同视频的「处理中」任务也做幂等返回——但**不是无条件返回**：进程被 kill、容器被重启、
+  MQ 消息丢失都会让任务永远停在「处理中」，而幂等返回意味着连管理端的「重新转码」都救不回来。
+  所以 `submit` 先判僵死再决定：`update_time` 距今超过 `transcode.stale-processing-minutes`（默认 30）
+  就视为执行进程已经没了，重置成「待处理」+ 清进度 + `retry_count` 加一后重新投递；
+  重试用尽（超过 `transcode.max-retry`）则直接终结为 `FAILED` 并写 `error_msg`，不再无限重投。
+  判据取 `update_time` 是因为 `TranscodeTaskRunner` 每过一个阶段都 `updateById` 刷进度（5→20→70→90→100），
+  MyBatis-Plus 的 `AutoFillHandler` 顺带把它写成当前时间，冻结不动就说明没人在推进。
+  阈值刻意给宽：ffmpeg 那一步（20→70）对长视频可能十几分钟不写一次库，
+  判短了会把健康任务误判成僵死，结果两个进程同时往同一个 `outDir` 与对象前缀里写。
+  没有引入定时扫描器——`submit` 已经是上传、合并分片、管理端重试三条路径的共同入口，
+  在这一个点上接管比再铺一套 `@EnableScheduling`（本仓库目前没有任何调度基础设施）更省，也不会和投递方抢任务。
 - **生产演进**：MQ 已就位，剩下的是把消费者拆成**独立转码集群 / 云 MPS（阿里云 MPS / 腾讯云 MPS）**——
   转码是 CPU 重活，与 Web 请求同进程会互相抢资源。因为执行单元已与调度方式解耦，
   拆分时只需把 `TranscodeTaskRunner` 及其依赖搬进一个只跑消费者的部署单元，业务接口与状态机不变。
@@ -432,7 +456,7 @@ RPC 契约有三条硬约束，都是踩过或推演过才定下的：
   - `transcodeToAdaptiveHls()`：**一步产出多清晰度自适应 HLS**——单命令 `-filter_complex split+scale` + `-var_stream_map` + `-master_pl_name master.m3u8`，生成 ABR 阶梯（默认 360p/480p/720p/1080p）+ 主播放列表；支持 `none`（libx264 软编）/ `cuda`（h264_nvenc）/ `qsv`（h264_qsv）三档**硬件加速矩阵**（参考 Jellyfin），切片支持 `fmp4`（CMAF，现代默认）/ `ts`。VBV 码率约束（maxrate≈1.1×目标、bufsize≈2×maxrate）+ Closed-GOP（keyint=48）保证 HLS 带宽估算准确、自适应切档平滑。
   - `thumbnail()`：抽取封面（取第 1 秒）。
 - `FfmpegProperties`：`ffmpeg-path` / `ffprobe-path` / `hls-time` / `work-dir`。
-- `TranscodeProperties`：`enabled` / `hwaccel` / `segment-type` / `hls-time` / `master-name` / 线程池大小 / `max-retry` / `renditions`（清晰度阶梯，默认 4 档）。
+- `TranscodeProperties`：`enabled` / `hwaccel` / `segment-type` / `hls-time` / `master-name` / 线程池大小 / `max-retry` / `stale-processing-minutes`（「处理中」任务的僵死判定阈值，见 8.2）/ `renditions`（清晰度阶梯，默认 4 档）。
 
 ### 8.4 分片上传：断点续传 + MD5 秒传
 
@@ -479,10 +503,10 @@ RPC 契约有三条硬约束，都是踩过或推演过才定下的：
 | `/api/videos/multipart/chunk` | POST(multipart) | `video:upload` | 上传单个分片（`uploadId` + `chunkIndex`），可并发、可重复 |
 | `/api/videos/multipart/progress` | GET | 登录即可 | 返回服务端实测已收到的分片下标；刷新页面或换设备后靠它接着传 |
 | `/api/videos/multipart/complete` | POST | `video:upload` | 服务端合并分片 + 建 `video_info`；若 `transcode.enabled=true` 同时提交转码任务 |
-| `/api/videos/{id}/transcode` | POST | `video:transcode` | 手动提交转码任务，返回任务 ID（幂等：已有进行中任务则直接返回） |
+| `/api/videos/{id}/transcode` | POST | `video:transcode` | 手动提交转码任务，返回任务 ID（已有进行中任务则直接返回；但若它已僵死会被重置重投，见 8.2「幂等与僵死接管」） |
 | `/api/videos/{id}/transcode-task` | GET | 登录即可 | 查询最新转码任务状态/进度（前端轮询） |
 | `/api/videos/{id}/download` | GET | 登录即可 | 返回下载 / 预签名 URL |
-| `/api/videos/{id}/play-url` | GET | 登录即可 | 已转码返回 `master.m3u8` 公共地址，否则返回源文件地址 |
+| `/api/videos/{id}/play-url` | GET | 登录即可 | 已转码返回 `master.m3u8` 公共地址，否则返回源文件地址；两者都为空（有记录无可播文件）抛 404，**不兜占位 URL** |
 | `/api/videos/{id}` | GET | 登录即可 | 视频详情（含 `hlsUrl` / `coverUrl` / `status`） |
 
 > 播放流程：上传 → 轮询 `transcode-task` 至 `status=2` → 用 `play-url`（即 `master.m3u8`）交给 HLS.js / 原生 `<video>` 播放，播放器按带宽自动切换清晰度。

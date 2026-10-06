@@ -1,5 +1,6 @@
 package org.tiglor.auth.service.impl;
 
+import java.util.Arrays;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.apache.dubbo.config.annotation.DubboReference;
@@ -28,6 +29,9 @@ import org.tiglor.common.core.ResultCode;
 @Service
 @RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
+
+    /** {@code sys_client.grant_type} 里代表密码登录的那个词，整词匹配用 */
+    private static final String GRANT_TYPE_PASSWORD = "password";
 
     /**
      * Dubbo 的引用注入走 BeanPostProcessor，只能打在非 final 字段上，
@@ -59,7 +63,14 @@ public class AuthServiceImpl implements AuthService {
         if (client == null || client.getStatus() == null || client.getStatus() != 1) {
             throw new BizException(ResultCode.VALIDATE_FAILED, "客户端未注册或已停用");
         }
-        if (client.getGrantType() == null || !client.getGrantType().contains("password")) {
+        // grant_type 是逗号分隔的多值列（DDL 上是 VARCHAR(128)「允许的认证方式」），只能整词匹配：
+        // contains("password") 会把 "passwordless"、"sms_password" 也放进来，
+        // 那些客户端本该走别的认证方式，却能在这里拿到一个合法签名的 token
+        boolean passwordGrant = client.getGrantType() != null
+                && Arrays.stream(client.getGrantType().split(","))
+                        .map(String::trim)
+                        .anyMatch(GRANT_TYPE_PASSWORD::equals);
+        if (!passwordGrant) {
             throw new BizException(ResultCode.VALIDATE_FAILED, "该客户端不支持密码登录");
         }
 

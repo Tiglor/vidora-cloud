@@ -164,6 +164,24 @@ IGNORE INTO `sys_role` (`id`, `role_code`, `role_name`, `description`) VALUES
 (1, 'ROLE_ADMIN', '超级管理员', '拥有全部菜单与按钮权限'),
 (2, 'ROLE_USER',  '普通用户',   '仅可浏览视频与发表评论');
 
+-- 账号种子：没有这两行，sys_user 是空表，登录链路（auth-service 经 Dubbo 调
+-- RemoteUserApi.getLoginUser）查不到任何账号，三端一个都登不进去。
+-- 两个账号的密码都是 123456，下面这串是它的 BCrypt 哈希（$2a$10$ 前缀 = strength 10）。
+-- BCrypt 自带随机盐，所以每次生成的串都不一样，能用就行，别去和别处的哈希比对字面值。
+-- 生产环境必须改掉这两个密码：这份哈希在仓库里是公开的，等于把口令写在明处。
+-- theme_key 的合法取值以前端主题清单为准（web src/config/themes.js 的 THEME_OPTIONS：
+-- light-blue / pink / green / purple / orange）。后端刻意不校验枚举，写错不会报错，
+-- 只会被前端 normalizeThemeKey 静默落回 light-blue，所以这里两个账号故意取不同值。
+INSERT
+IGNORE INTO `sys_user` (`id`, `phone`, `nickname`, `password_hash`, `status`, `theme_key`) VALUES
+(1, '13800138000', '超级管理员', '$2a$10$WxLEve0VjI6CU3AHMt43IeY4N/2HxrzO3GRR3VNY.eEUUOtDINkTm', 1, 'light-blue'),
+(2, '13900139000', '普通用户',   '$2a$10$WxLEve0VjI6CU3AHMt43IeY4N/2HxrzO3GRR3VNY.eEUUOtDINkTm', 1, 'pink');
+
+-- id=1 挂 ROLE_ADMIN（全部菜单与按钮权限），id=2 挂 ROLE_USER（浏览 + 评论）。
+-- 注册接口给的默认角色也是 2，见 RemoteUserApiImpl.DEFAULT_ROLE_ID。
+INSERT
+IGNORE INTO `sys_user_role` (`user_id`, `role_id`) VALUES (1, 1), (2, 2);
+
 -- icon 列存的是 Element Plus 图标组件名（管理端用 <component :is="icon"/> 渲染），
 -- 必须是对得上的 PascalCase 名字，写成小写或拼错的图标名不会报错，只是静默渲染成空白
 INSERT

@@ -104,6 +104,14 @@ services:
       TZ: ${TZ}
     ports:
       - "8848:8848"
+      # 9848 / 9849 是 Nacos 2.x 的 gRPC 端口，客户端（SCA 服务注册、Dubbo 的 nacos registry）
+      # 自己按「主端口 + 1000 / + 1001」算出来，服务端不会告知。不发布它们的后果只出现在
+      # **服务跑在宿主机、Nacos 跑在容器里**这种组合上：8848 通、readiness 也返回 OK，
+      # 但注册时报 `ErrCode:-401, Client not connected, current status:STARTING`，
+      # 又因为 spring.cloud.nacos.discovery.fail-fast 默认 true，整个应用启动失败。
+      # 宿主机端口号必须和容器内一致（9848:9848），否则客户端算出来的端口对不上。
+      - "9848:9848"
+      - "9849:9849"
     volumes:
       - nacos-logs:/home/nacos/logs
     networks: [vidora-net]

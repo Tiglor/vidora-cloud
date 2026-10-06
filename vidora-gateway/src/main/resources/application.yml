@@ -130,6 +130,13 @@ jwt:
   secret: ${JWT_SECRET:vidora-cloud-dev-only-secret-key-change-me-32bytes-min}
   expire-seconds: 604800
 
+# 网关自身的行为开关
+gateway:
+  # 管理端客户端标识，GatewayAuthFilter 用它判定 ADMIN_PATH_PREFIXES 那批前缀放不放行。
+  # 必须和 sys_client 表里管理端那行的 client_key 一致（种子数据是 'admin'）；
+  # 在「客户端管理」页改了这个值，这里要跟着改，否则所有管理接口一律 403。
+  admin-client-key: ${GATEWAY_ADMIN_CLIENT_KEY:admin}
+
 # 日志：落盘目录、分级文件（app / error / audit）、滚动与保留策略统一在
 # common-core 的 logback-base.xml 里定义，产物落在 logs/<服务名>/ 下；
 # 容器里用环境变量 VIDORA_LOG_PATH 指到日志卷。这里只调级别。

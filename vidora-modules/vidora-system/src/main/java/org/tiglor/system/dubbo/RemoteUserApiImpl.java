@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.dubbo.config.annotation.DubboService;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,6 +32,7 @@ import org.tiglor.system.mapper.UserRoleMapper;
  * <p>
  * 全部方法都不抛业务异常，「查不到 / 撞车」用 {@code null} 表达——理由写在契约接口的类注释里。
  */
+@Slf4j
 @DubboService
 @RequiredArgsConstructor
 public class RemoteUserApiImpl implements RemoteUserApi {
@@ -94,7 +96,9 @@ public class RemoteUserApiImpl implements RemoteUserApi {
             userMapper.insert(user);
         } catch (DuplicateKeyException e) {
             // 先查后插之间的并发窗口：唯一索引是真正的守卫，这里把撞车翻译成和「已存在」同一个返回值，
-            // 调用方就不必区分两种失败
+            // 调用方就不必区分两种失败。但一定要留一条日志：撞的未必是 uk_phone，
+            // 静默返回 null 会让「其实是别的约束炸了」这种真因永远查不出来
+            log.warn("注册撞唯一键，按已存在处理 phone={}", register.getPhone(), e);
             return null;
         }
 
