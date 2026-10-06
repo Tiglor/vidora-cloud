@@ -36,7 +36,7 @@ public interface MessageRecordMapper extends BaseMapper<MessageRecord> {
     /**
      * 某人从某个发件人那里收到的、还没读的私信数。
      * <p>
-     * 用于「标记会话已读」之后**重算**会话表的未读数，而不是直接把它清成 0，
+     * 用于「标记会话已读」之后「重算」会话表的未读数，而不是直接把它清成 0，
      * 见 {@code ConversationServiceImpl#markRead}。
      * </p>
      */

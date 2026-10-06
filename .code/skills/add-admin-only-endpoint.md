@@ -4,7 +4,7 @@
 
 这是本仓库**最容易出事**的一类改动：安全边界由两处独立配置共同构成，漏掉第二处时接口编译通过、路由通、服务正常，只是任何登录用户都能读后台数据 —— **没有任何报错会提醒你**。
 
-前置阅读：`.code/agent-rules.md` 第四节（禁止动作）、`.code/coding-standards.md` 第 3 节、`docs/ARCHITECTURE.md` 的鉴权链路章节。
+前置阅读：`.code/agent-rules.md` 第四节（禁止动作）、`.code/coding-standards.md` 第 3 节、`ARCHITECTURE.md` 的鉴权链路章节。
 
 ---
 
@@ -14,7 +14,7 @@
 | --- | --- | --- | --- |
 | 1 | `vidora-gateway/src/main/resources/application.yml` → `spring.cloud.gateway.server.webflux.routes` | 让请求能到达服务 | 404（会被立刻发现，代价最小） |
 | 2 | `vidora-gateway/src/main/java/org/tiglor/gateway/filter/GatewayAuthFilter.java` → `ADMIN_PATH_PREFIXES` | 非 admin clientKey 一律 403 | **静默越权**：普通用户 token 可直接访问 |
-| 3 | `SQL/NN_*.sql` → `sys_menu` 权限种子 + `sys_role_menu` 授权 | 让角色真的拿到权限码 | 管理员调用永远 403 |
+| 3 | `SQL/vidora_cloud.sql` 第 1 节 → `sys_menu` 权限种子 + `sys_role_menu` 授权 | 让角色真的拿到权限码 | 管理员调用永远 403 |
 | 4 | Controller 方法上的 `@PreAuthorize("hasAuthority('...')")` | 服务内接口级授权，粒度到方法 | 整个 Controller 对所有登录用户开放 |
 
 第 2 与第 4 是**两层不同粒度**：第 2 层按路径前缀拦客户端类型（粗，全有或全无），第 4 层按权限码拦具体操作（细）。同一资源里「读给用户、写给管理」就要靠路径切分 + 权限码配合，见下面的陷阱 3。
@@ -69,7 +69,7 @@
 
 权限码格式 `{域}:{资源}:{动作}`，实际用词：`:list` / `:add` / `:edit` / `:delete` / `:manage` / `:assign` / `:audit` / `:purge` / `:view`。字典类维护常用一个 `:manage` 覆盖全部写操作（`content:category:manage`）；不可逆清理要单独一档（`recommend:manage` vs `recommend:purge`）。
 
-新建迁移文件（编号规则见 `.code/skills/add-a-db-migration.md`），照 `SQL/09_sys_log.sql` 尾部与 `SQL/01_user_service.sql` 的 33–37 段写法：
+在 `SQL/vidora_cloud.sql` 第 1 节（用户与权限）尾部追加一段 `INSERT IGNORE`（不新建文件；写法照该节里 33–37 与 46–48 那几段，编号规则见 `.code/skills/add-a-db-migration.md`）：
 
 ```sql
 -- 管理端菜单：Xxx 管理（挂在"系统管理"目录 id=8 下）
@@ -82,7 +82,7 @@ INSERT IGNORE INTO `sys_menu` (`id`, `parent_id`, `menu_name`, `menu_type`, `pat
 INSERT IGNORE INTO `sys_role_menu` (`role_id`, `menu_id`) VALUES (1,60),(1,61),(1,62);
 ```
 
-字段语义（现场读 `SQL/01_user_service.sql` 的建表段确认）：
+字段语义（现场读 `SQL/vidora_cloud.sql` 第 1 节的 `sys_menu` 建表段确认）：
 
 | 列 | 取值 |
 | --- | --- |
@@ -95,7 +95,7 @@ INSERT IGNORE INTO `sys_role_menu` (`role_id`, `menu_id`) VALUES (1,60),(1,61),(
 先查当前最大 id，别撞上：
 
 ```bash
-grep -hoE "^\(([0-9]+)," SQL/*.sql | tr -d '(,' | sort -n | tail -3
+grep -hoE "^\(([0-9]+)," SQL/vidora_cloud.sql | tr -d '(,' | sort -n | tail -3
 ```
 
 **迁移由用户手工执行 —— AI 不得连库跑。** 交付时要写明「菜单种子尚未入库，因此权限未生效」。

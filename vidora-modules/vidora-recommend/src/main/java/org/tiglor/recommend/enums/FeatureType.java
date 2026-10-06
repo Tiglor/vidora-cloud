@@ -9,7 +9,7 @@ import java.util.Locale;
 /**
  * 用户特征维度，对应 {@code recommend_user_feature.feature_type}。
  * <p>
- * {@code feature_value} 是自由字符串（标签名、分类 id、作者 id），但**类型**必须收敛：
+ * {@code feature_value} 是自由字符串（标签名、分类 id、作者 id），但「类型」必须收敛：
  * 三类特征在召回里的用法完全不同，混在一列里靠 value 猜类型是查不出来的。
  * </p>
  */

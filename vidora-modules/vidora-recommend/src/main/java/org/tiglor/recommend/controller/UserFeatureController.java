@@ -36,7 +36,11 @@ public class UserFeatureController {
 
     private final UserFeatureService service;
 
-    /** 某用户某一类特征里权重最高的若干个，给召回侧读 */
+    /**
+     * 查询用户权重最高的特征
+     *
+     * <p>某用户某一类特征里权重最高的若干个，权重相同时按 id 升序保证稳定，给召回侧读。</p>
+     */
     @GetMapping("/top")
     @PreAuthorize("hasAuthority('recommend:manage')")
     public ApiResult<List<UserFeature>> top(@RequestParam Long userId,
@@ -45,7 +49,11 @@ public class UserFeatureController {
         return ApiResult.ok(service.top(userId, featureType, limit));
     }
 
-    /** 特征任务写入一个用户的画像，同 (类型, 值) 覆盖权重而不是累加 */
+    /**
+     * 批量写入用户特征
+     *
+     * <p>特征任务写入一个用户的画像，同 (类型, 值) 覆盖权重而不是累加。</p>
+     */
     @PostMapping("/batch")
     @PreAuthorize("hasAuthority('recommend:manage')")
     public ApiResult<Integer> batchUpsert(@Valid @RequestBody UserFeatureBatchRequest request) {
@@ -53,8 +61,9 @@ public class UserFeatureController {
     }
 
     /**
-     * 删掉某用户的特征，{@code featureType} 不传就是清空这个人的全部画像。
+     * 删除用户特征
      *
+     * @param featureType 不传就是清空这个人的全部画像
      * @return 删除行数
      */
     @DeleteMapping

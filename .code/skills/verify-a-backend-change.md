@@ -36,6 +36,8 @@ mvn -o -Dmaven.legacyLocalRepo=true compile
 
 **编译绿的边界**：它只能证明类型对得上。路由缺失、权限漏配、SQL 未执行、字段语义错、运行时 N+1 —— 全都编得过。**不许把「编译通过」写成「功能已验证」**。
 
+引了 Dubbo 的模块还要多一层警惕：服务导出发生在启动那一刻，编译期完全看不出问题。已踩到两例（`ARCHITECTURE.md` §0 的 #7 #8）—— `mysql-connector-j` 带的 protobuf 4.x 顶掉 Dubbo 要的 3.x，以及缺 gson 时 `JsonUtils` 的 SPI 探测从 `hasNext()` 抛出 `NoClassDefFoundError`。**新增 Dubbo provider/consumer 后，编译绿不等于能起来**，这类改动要在交付说明里写明「未经启动验证」。
+
 ## 第 2 层：静态一致性走查（AI 必做，不需要环境）
 
 按改动类型逐条 grep，每条都要看到预期命中：
@@ -51,19 +53,38 @@ grep -n '"/api/' vidora-gateway/src/main/java/org/tiglor/gateway/filter/GatewayA
 
 # 权限码：Controller 用的和 SQL 种子给的是否同一个字符串
 grep -rn "hasAuthority(" --include="*.java" vidora-modules/{目标服务}
-grep -n "permission_code\|'{资源}:{动作}'" SQL/*.sql
+grep -n "permission_code\|'{资源}:{动作}'" SQL/vidora_cloud.sql
 
 # 审计：注解在不在、title 是否与同模块一致
 grep -rn "@OperLog" --include="*Controller.java" vidora-modules/{目标服务}
 
 # entity 字段是否真能在 DDL 里找到对应列
-grep -n "{列名}" SQL/{NN}_{service}.sql
+grep -n "{列名}" SQL/vidora_cloud.sql
+
+# 接口说明与字段描述：改了 controller／DTO／实体就要验注释有没有烘出来。
+# 编译通过对「没写注释」完全无感，文档只是静默少描述，所以这一步不能省（机制与两个 Windows 坑见 coding-standards 3.1）。
+python .code/tools/check-endpoint-javadoc.py            # 形状：第一行接口名、不许单行紧凑式、不许贴签名
+python .code/tools/check-endpoint-javadoc.py --baked    # 同上，但读烘出的 JSON＝springdoc 真正当成 summary 的那一行
+ls vidora-modules/{目标服务}/target/classes/org/tiglor/{域}/{dto,entity}/*__Javadoc.json | head
+mvn -o dependency:build-classpath -Dmdep.outputFile=/c/tmp/cp/{目标服务}.txt -pl vidora-modules/{目标服务}
+"$JAVA_HOME/bin/javac.exe" -encoding UTF-8 -cp "$(tr -d '\r\n' < /c/tmp/cp/{目标服务}.txt)" \
+  -d /c/tmp .code/tools/FieldProbe.java
+# 公共模块的编译产物排在前面，否则继承来的 BaseEntity 字段读的是旧 jar，虚报缺描述
+"$JAVA_HOME/bin/java.exe" -Dstdout.encoding=UTF-8 \
+  -cp "C:/tmp;vidora-common/common-core/target/classes;vidora-common/common-log/target/classes;vidora-modules/{目标服务}/target/classes;$(tr -d '\r\n' < /c/tmp/cp/{目标服务}.txt)" \
+  FieldProbe {全限定类名...}      # 输出「缺=0」才算字段描述齐
+
+# 契约下游：三端的类型文件（admin src/api/types.ts、mobile src/types/index.ts、web src/api/*.js 的注释）是各自手抄的副本，
+# 后端改了出入参形状不会让它们编译报错 —— 这里没有可跑的生成步骤，只有两条人工动作：
+#   1) 服务起着时核对文档描述是否真带出来了：GET http://127.0.0.1:{服务端口}/v3/api-docs 里看目标类的 properties
+#   2) 交付里点名「改了哪个字段 / 哪一端的哪个类型文件要跟着改」（判据见 coding-standards 3.1）
 
 # 缓存名是否已登记
 grep -n "{域}:" vidora-common/common-redis/src/main/java/org/tiglor/common/redis/CacheNames.java
 
-# 行尾有没有被改坏（对比工作区文件的 CRLF 状态）
-for f in {改过的文件}; do printf "%s: " "$f"; grep -qU $'\r' "$f" && echo CRLF || echo LF; done
+# 行尾有没有被改坏 —— 用字节计数。别用 `grep -cU $'\r'`：本机 Git Bash 下它把每一行都判成命中，
+# 对纯 LF 文件也报「有 CR」，是个假阳性判据（实测 RemoteLogSink.java 报 113，字节数其实是 0）。
+for f in {改过的文件}; do printf "%s: " "$f"; cr=$(tr -dc '\r' < "$f" | wc -c); lf=$(tr -dc '\n' < "$f" | wc -c); [ "$cr" = 0 ] && echo "LF" || { [ "$cr" = "$lf" ] && echo "CRLF" || echo "MIXED(坏了)"; }; done
 git diff --stat        # 期望：新增行数 ≈ 真实改动量；整文件重写说明格式化过头了
 ```
 
@@ -81,7 +102,7 @@ git diff --stat        # 期望：新增行数 ≈ 真实改动量；整文件�
 
 ### 3.2 拿 token
 
-登录需要 `clientId`（三端各一个固定值，见 `SQL/01_user_service.sql` 的 `sys_client` 种子）：
+登录需要 `clientId`（三端各一个固定值，见 `SQL/vidora_cloud.sql` 第 1 节的 `sys_client` 种子）：
 
 | client_key | client_id | 过期 |
 | --- | --- | --- |
@@ -185,15 +206,15 @@ AI 不代跑迁移，但可以（在用户允许只读查询的前提下）跑 S
 ## 已验证
 - `mvn -o -q -Dmaven.legacyLocalRepo=true -pl vidora-modules/vidora-content -am compile` 退出码 0，无 [ERROR]。
 - 静态走查：新前缀 /api/xxxs/ 已出现在 GatewayAuthFilter.ADMIN_PATH_PREFIXES 第 NN 行；
-  权限码 xxx:list 在 Controller 与 SQL/10 两侧字面一致。
+  权限码 xxx:list 在 Controller 与 SQL/vidora_cloud.sql 的菜单种子里字面一致。
 - （若真调过）curl GET /api/xxxs/page with admin token → 200，data.records 3 条；
   with web token → 403 {"code":403,"message":"该接口仅限管理端访问"}。
 
 ## 未验证
 - 服务未启动（等用户批准），第 3 层 5 类用例本次全部未跑。
-- SQL/10_xxx.sql 未执行（按约定由用户手工执行），因此菜单种子与权限生效与否未知。
+- SQL/vidora_cloud.sql 的新增段落未执行（按约定由用户手工执行），因此菜单种子与权限生效与否未知。
 - audit.log / sys_oper_log 的落库链路本次未对照。
-- 三端前端调用点未同步检查（不在本次范围）。
+- 三端类型未同步：本次改了出入参形状，而 admin `src/api/types.ts` / mobile `src/types/index.ts` / web `src/api/*.js` 的注释都是手抄副本，后端编译通过不代表它们已对齐（见 coding-standards 3.1）。
 ```
 
 硬性禁令（重申）：

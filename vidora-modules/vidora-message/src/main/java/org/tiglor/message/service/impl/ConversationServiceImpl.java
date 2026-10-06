@@ -98,7 +98,7 @@ public class ConversationServiceImpl extends ServiceImpl<MessageConversationMapp
     /**
      * 把我在这一段会话里的未读数同步成 {@code message_record} 上的实测值。
      * <p>
-     * 必须在 {@link #markRead} 标记完消息**之后**调用，且和它同一个事务：
+     * 必须在 {@link #markRead} 标记完消息「之后」调用，且和它同一个事务：
      * 顺序反了或不在一个事务里，中间插进来的新私信会被清掉未读，
      * 于是那条消息在收件箱里是未读、在会话列表上却顶不出红点。
      * </p>

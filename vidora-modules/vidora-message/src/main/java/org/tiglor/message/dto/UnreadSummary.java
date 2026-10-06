@@ -13,8 +13,11 @@ import lombok.Data;
 @Data
 public class UnreadSummary {
 
+    /** 系统通知（msgType=1）里我还没读的条数 */
     private Long systemCount;
+    /** 互动消息（msgType=2）里我还没读的条数 */
     private Long interactCount;
+    /** 私信（msgType=3）里我还没读的条数，跨所有会话合计，不分段 */
     private Long privateCount;
 
     /** 三类之和 */

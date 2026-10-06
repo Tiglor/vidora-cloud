@@ -19,6 +19,10 @@ import lombok.Data;
 @Data
 public class SuggestRequest {
 
+    /**
+     * 建议词，入库前去掉首尾空白。全表唯一（大小写不敏感），
+     * 所以新增撞词、或把另一个词改成已有词，都会被当成校验失败挡回来；改自己不算撞词。
+     */
     @NotBlank(message = "keyword 不能为空")
     @Size(max = 200, message = "keyword 不能超过 200 字")
     private String keyword;

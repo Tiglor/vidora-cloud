@@ -1,7 +1,7 @@
 package org.tiglor.system.service;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import org.tiglor.common.user.entity.User;
+import org.tiglor.system.entity.User;
 import com.baomidou.mybatisplus.spring.service.IService;
 
 public interface UserService extends IService<User> {

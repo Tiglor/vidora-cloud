@@ -17,13 +17,25 @@ import java.util.List;
 @Data
 public class CategoryNode {
 
+    /** 本节点对应的分类 id */
     private Long id;
+    /** 父分类 id，0 表示这是一级分类 */
     private Long parentId;
+    /** 分类名 */
     private String name;
+    /** 图标地址，没配过就是 null */
     private String iconUrl;
+    /** 同一层内的展示顺序，越小越靠前 */
     private Integer sortOrder;
+    /** 树只由那一份启用分类组装，所以这里恒为 1-启用 */
     private Integer status;
+    /** 分类的创建时间，原样取自实体 */
     private LocalDateTime createTime;
+    /**
+     * 直接子节点，顺序与 {@code sortOrder} 一致；没有下级时是空数组而不是 null。
+     * 父级已被禁用或删掉的节点不会挂在这一份里，而是被提到根上——藏起来的话
+     * 运营就没有入口把它改回来了。
+     */
     private List<CategoryNode> children = new ArrayList<>();
 
     public static CategoryNode of(Category category) {

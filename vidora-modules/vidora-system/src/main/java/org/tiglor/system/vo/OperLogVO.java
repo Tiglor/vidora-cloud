@@ -17,5 +17,9 @@ import org.tiglor.common.log.entity.OperLogEntity;
 @Setter
 public class OperLogVO extends OperLogEntity {
 
+    /**
+     * 操作人展示名，查询时按 {@code operUserId} 现算、不落库：查到就是他的最新昵称，
+     * 账号已注销或昵称留空则退化成「用户#ID」，压根没有操作人时显示「系统」。
+     */
     private String operUserName;
 }

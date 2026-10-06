@@ -17,7 +17,7 @@ public interface SearchHistoryService extends IService<SearchHistory> {
     /**
      * 记一次搜索：既写这个人的历史，也写当天的全站词频统计。
      * <p>
-     * 两张表都是 upsert，重复调用会**重复计数**——计数器本来就没有幂等键，
+     * 两张表都是 upsert，重复调用会「重复计数」——计数器本来就没有幂等键，
      * 客户端重试一次就多算一次，这是可接受的误差，不值得为它引入去重表。
      * </p>
      *

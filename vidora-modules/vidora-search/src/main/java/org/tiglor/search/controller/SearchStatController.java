@@ -35,7 +35,11 @@ public class SearchStatController {
 
     private final SearchKeywordStatService service;
 
-    /** 某一天的热词，按搜索次数倒序 */
+    /**
+     * 查询某天热词
+     *
+     * <p>某一天的热词，按搜索次数倒序</p>
+     */
     @GetMapping("/hot")
     @PreAuthorize("hasAuthority('search:stat:view')")
     public ApiResult<List<SearchKeywordStat>> hot(
@@ -44,6 +48,18 @@ public class SearchStatController {
         return ApiResult.ok(service.hot(date, limit));
     }
 
+    /**
+     * 搜索词统计分页
+     *
+     * <p>先按统计日期倒序，同一天内按搜索次数倒序</p>
+     * <p>
+     * {@code date} 这里不传就是「不按日期筛」，能一次翻到好几天的同一批词；
+     * 而 {@code /hot} 不传时按今天算——两个接口的 null 语义不一样，别照着抄。
+     * </p>
+     *
+     * @param date    按天精确匹配统计日期（{@code yyyy-MM-dd}）；不传则跨天查，见上
+     * @param keyword 词本身做包含匹配（{@code LIKE '%kw%'}），不是前缀匹配
+     */
     @GetMapping("/page")
     @PreAuthorize("hasAuthority('search:stat:view')")
     public ApiResult<Page<SearchKeywordStat>> page(

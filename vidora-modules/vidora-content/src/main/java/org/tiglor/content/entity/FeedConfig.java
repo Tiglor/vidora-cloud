@@ -24,21 +24,31 @@ public class FeedConfig implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
+    /** 主键，数据库自增；删掉一个配置项再建同名 key 会得到一个新 id */
     @TableId(type = IdType.AUTO)
     private Long id;
 
     /** 流类型：recommend / hot / follow，取值见 {@link org.tiglor.content.enums.FeedType} */
     private String feedType;
 
+    /** 配置项名，与 {@code feedType} 合起来才是那一行（{@code uk_feed_key}），单独看可能撞名 */
     private String configKey;
 
+    /**
+     * 配置值，列上是 TEXT 但语义必须是合法 JSON，服务层写入前用 Jackson 解析过一遍；
+     * 为 null 表示「这个 key 没配」，它不会出现在 {@code /configs/{feedType}} 的 Map 里，
+     * 推荐服务据此回落到代码里的默认参数。
+     */
     private String configValue;
 
+    /** 人看的说明，只给管理端表格渲染用，算法侧不读；纯空白按 null 落库 */
     private String description;
 
+    /** 创建时间，插入时自动填充 */
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 
+    /** 最后更新时间，插入与更新时都自动填充；upsert 改值也会刷新 */
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updateTime;
 }

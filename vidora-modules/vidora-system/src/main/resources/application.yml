@@ -5,10 +5,11 @@ spring:
   application:
     name: system-service
 
-  # Datasource
+  # Datasource：单库 vidora_cloud（SQL/vidora_cloud.sql 按业务分节）。库不隔离了，边界靠表名前缀守：
+  # 本服务只管 sys_* / user_* 和两张审计表，别的节只读不写、要写就走服务间调用。
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://127.0.0.1:3306/user_service?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+    url: jdbc:mysql://127.0.0.1:3306/vidora_cloud?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
     username: ${SPRING_DATASOURCE_USERNAME:root}
     password: ${SPRING_DATASOURCE_PASSWORD:123456}
 
@@ -20,11 +21,32 @@ spring:
       password: ${SPRING_DATA_REDIS_PASSWORD:xiao123456}
       database: 0
 
-  # Nacos：当前只用服务注册与发现，配置中心暂缓（重新启用步骤见 docs/ARCHITECTURE.md 6.2）
+  # Nacos：当前只用服务注册与发现，配置中心暂缓（重新启用步骤见 .code/ARCHITECTURE.md 6.2）
   cloud:
     nacos:
       discovery:
         server-addr: 127.0.0.1:8848
+
+# Dubbo：本服务是 provider，把 RemoteUserApi / RemoteClientApi 导出给 auth-service。
+# 扫描哪个包由启动类上的 @EnableDubbo 指定，这里刻意不写 dubbo.scan.base-packages——
+# 两处都配会各注册一个 ServiceAnnotationPostProcessor。
+dubbo:
+  application:
+    name: system-service
+    # QoS 是 Dubbo 自带的运维端口（默认 22222），本仓库没有用它，关掉少一个监听口
+    qos-enable: false
+  registry:
+    # 和上面的 spring.cloud.nacos.discovery 是同一个 Nacos，但走 Dubbo 自己的注册路径：
+    # Nacos 里会多出 providers:org.tiglor.api.system.RemoteUserApi:: 这类接口级条目，不是重复注册
+    address: ${DUBBO_REGISTRY_ADDRESS:nacos://127.0.0.1:8848}
+  protocol:
+    name: dubbo
+    # 9 个服务里目前只有 system-service 是 provider，所以默认端口不用避让；
+    # 将来第二个 provider 上线时必须给它另一个端口，同一台机器上撞端口会启动失败
+    port: ${DUBBO_PROTOCOL_PORT:20880}
+  provider:
+    # 登录链路上的调用，超时给到 5s：比 HTTP 侧的 Feign 宽松，因为这条链路失败等于登录不了
+    timeout: 5000
 
 # MyBatis-Plus
 mybatis-plus:
@@ -39,6 +61,8 @@ mybatis-plus:
 
 # SpringDoc OpenAPI
 springdoc:
+  # 接口说明取自 controller/service 上的 Javadoc（therapi 编译期烘进 target/classes，处理器见根 pom），不是 Swagger 注解
+  enable-javadoc: true
   api-docs:
     enabled: true
     path: /v3/api-docs
@@ -62,5 +86,5 @@ spring:
       on-profile: dev
 logging:
   level:
-    org.tiglor.common.user.mapper: debug
+    org.tiglor.system.mapper: debug
     org.tiglor.common.log.mapper: debug

@@ -35,7 +35,13 @@ public class MessageController {
 
     private final MessageService messageService;
 
-    /** 我的收件箱，msgType 省略时返回全部类型 */
+    /**
+     * 查询我的收件箱
+     *
+     * <p>按时间倒序。</p>
+     *
+     * @param msgType 省略时返回全部类型
+     */
     @GetMapping
     public ApiResult<Page<MessageView>> inbox(@RequestParam(required = false) Integer msgType,
                                               @RequestParam(defaultValue = "1") long current,
@@ -43,13 +49,21 @@ public class MessageController {
         return ApiResult.ok(messageService.inbox(UserContext.getUserId(), msgType, current, size));
     }
 
-    /** 三类消息各自的未读数 + 还有未读的会话段数，给客户端红点用 */
+    /**
+     * 查询未读汇总
+     *
+     * <p>三类消息各自的未读数 + 还有未读的会话段数，给客户端红点用。</p>
+     */
     @GetMapping("/unread")
     public ApiResult<UnreadSummary> unreadSummary() {
         return ApiResult.ok(messageService.unreadSummary(UserContext.getUserId()));
     }
 
-    /** 与某人的私信往来（双向）。收件箱只有「我收到的」，发出去的从这里看 */
+    /**
+     * 查询与某人的私信往来
+     *
+     * <p>双向，按时间倒序。收件箱只有「我收到的」，发出去的从这里看。</p>
+     */
     @GetMapping("/thread/{peerId}")
     public ApiResult<Page<MessageView>> thread(@PathVariable Long peerId,
                                                @RequestParam(defaultValue = "1") long current,
@@ -58,7 +72,8 @@ public class MessageController {
     }
 
     /**
-     * 发系统通知 / 互动消息。
+     * 发送系统通知
+     *
      * <p>
      * 挂 {@code message:send} 权限：这个接口能往任何人收件箱里塞一条「系统」消息，
      * 对普通用户开放就等于开放了伪造官方通知。将来的正常调用方是 MQ 消费者
@@ -71,16 +86,21 @@ public class MessageController {
         return ApiResult.ok(messageService.sendNotification(request));
     }
 
-    /** 发私信。发信人是当前登录用户，客户端改不了 */
+    /**
+     * 发送私信
+     *
+     * <p>发信人是当前登录用户，客户端改不了。</p>
+     */
     @PostMapping("/private")
     public ApiResult<MessageView> sendPrivateMessage(@Valid @RequestBody PrivateMessageRequest request) {
         return ApiResult.ok(messageService.sendPrivateMessage(request, UserContext.getUserId()));
     }
 
     /**
-     * 标记已读，返回被标记的条数。
+     * 标记消息已读
+     *
      * <p>
-     * 私信传 peerId 只标记这一段会话，不传则整个私信收件箱全标已读；
+     * 返回被标记的条数。私信传 peerId 只标记这一段会话，不传则整个私信收件箱全标已读；
      * 系统通知和互动消息不接受 peerId。
      * </p>
      */
@@ -90,7 +110,11 @@ public class MessageController {
         return ApiResult.ok(messageService.markRead(UserContext.getUserId(), msgType, peerId));
     }
 
-    /** 删除（隐藏）一条消息，发信人或收信人都可以 */
+    /**
+     * 删除一条消息
+     *
+     * <p>删除即隐藏，发信人或收信人都可以。</p>
+     */
     @DeleteMapping("/{id}")
     public ApiResult<Void> delete(@PathVariable Long id) {
         messageService.delete(id, UserContext.getUserId());

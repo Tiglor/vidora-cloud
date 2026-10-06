@@ -34,7 +34,7 @@ public interface PushDeviceMapper extends BaseMapper<PushDevice> {
                @Param("vendor") String vendor);
 
     /**
-     * 把同一个 push_token 在**别的用户名下**的绑定置为失效。
+     * 把同一个 push_token 在「别的用户名下」的绑定置为失效。
      * <p>
      * 设备是会被转手和换账号登录的：不失效旧绑定的话，同一个 token 会同时挂在两个用户下，
      * 厂商推送会往同一条通道投两个账号的消息——A 的私信推给正在用这台设备的 B，是实打实的隐私泄露。

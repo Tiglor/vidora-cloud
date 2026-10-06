@@ -34,7 +34,11 @@ public class SecurityAuditController {
 
     private final SecurityAuditService service;
 
-    /** 内容服务（video / interact）在机审跑完后回报结果 */
+    /**
+     * 回报机审结果
+     *
+     * <p>内容服务（video / interact）在机审跑完后调用。</p>
+     */
     @PostMapping("/machine")
     @PreAuthorize("hasAuthority('content:audit:manage')")
     public ApiResult<Void> reportMachine(@Valid @RequestBody MachineAuditRequest request) {
@@ -42,14 +46,22 @@ public class SecurityAuditController {
         return ApiResult.ok();
     }
 
-    /** 查单个对象的审核结果，没审过时 data 为 null */
+    /**
+     * 查询对象审核结果
+     *
+     * <p>按 {@code targetType + targetId} 查，没审过时 data 为 null。</p>
+     */
     @GetMapping("/target")
     @PreAuthorize("hasAuthority('content:audit:manage')")
     public ApiResult<SecurityAudit> findByTarget(@RequestParam String targetType, @RequestParam Long targetId) {
         return ApiResult.ok(service.findByTarget(targetType, targetId));
     }
 
-    /** 待人工复核队列：中高风险且未复核，风险高的在前 */
+    /**
+     * 查询待复核队列
+     *
+     * <p>中高风险且未复核的记录，风险高的在前。</p>
+     */
     @GetMapping("/pending")
     @PreAuthorize("hasAuthority('content:audit:manage')")
     public ApiResult<Page<SecurityAudit>> pending(@RequestParam(defaultValue = "1") long current,
@@ -57,6 +69,19 @@ public class SecurityAuditController {
         return ApiResult.ok(service.pending(current, size));
     }
 
+    /**
+     * 审核记录分页
+     *
+     * <p>全量列表，最新一条在前。</p>
+     * <p>
+     * 和 {@code /pending} 的分工：那边只捞未复核的中高风险、按风险高低排；这边不按是否复核收窄，
+     * 给运营按对象或等级回查具体某条内容当初的机审判定。
+     * </p>
+     *
+     * @param targetType video / comment / danmaku，传其他值直接报参数错误而不是查出一页空结果
+     * @param riskLevel  0-无 / 1-低 / 2-中 / 3-高；同样先验取值
+     * @param reviewed   true 只看已人工复核过的，false 只看还没复核的，不传则两种都列
+     */
     @GetMapping("/page")
     @PreAuthorize("hasAuthority('content:audit:manage')")
     public ApiResult<Page<SecurityAudit>> page(@RequestParam(defaultValue = "1") long current,
@@ -67,7 +92,11 @@ public class SecurityAuditController {
         return ApiResult.ok(service.page(current, size, targetType, riskLevel, reviewed));
     }
 
-    /** 人工复核，允许对已复核过的对象改判 */
+    /**
+     * 提交人工复核
+     *
+     * <p>允许对已复核过的对象改判。</p>
+     */
     @PutMapping("/{id}/review")
     @PreAuthorize("hasAuthority('content:audit:manage')")
     @OperLog(title = "内容审核", type = BusinessType.AUDIT)

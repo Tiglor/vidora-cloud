@@ -15,16 +15,20 @@ import lombok.Data;
 @Data
 public class AlgoConfigRequest {
 
+    /** 推荐场景，home / follow / topic；大小写不敏感，服务端归一成规范小写值再落库，非法取值当场报 400 */
     @NotBlank(message = "scene 不能为空")
     private String scene;
 
+    /** 算法类型，cf / deep / heatmap；归一规则同 {@code scene}，两者与 {@code configKey} 一起定位唯一一行 */
     @NotBlank(message = "algoType 不能为空")
     private String algoType;
 
+    /** 参数名，两侧空白会被去掉后再参与唯一键比较 */
     @NotBlank(message = "configKey 不能为空")
     @Size(max = 50, message = "configKey 不能超过 50 字")
     private String configKey;
 
+    /** 给人看的说明，可选；空白按 null 存。upsert 会连它一起覆盖，只想改说明也得把 {@code configValue} 一并重传 */
     @Size(max = 500, message = "description 不能超过 500 字")
     private String description;
 

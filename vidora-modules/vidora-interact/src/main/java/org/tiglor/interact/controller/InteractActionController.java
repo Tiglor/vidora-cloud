@@ -32,7 +32,11 @@ public class InteractActionController {
 
     private final InteractActionService actionService;
 
-    /** 设置为点赞/收藏/分享或其取消状态。幂等：重复提交同一状态不会重复计数 */
+    /**
+     * 设置点赞收藏分享状态
+     *
+     * <p>设置为点赞/收藏/分享或其取消状态。幂等：重复提交同一状态不会重复计数。</p>
+     */
     @PutMapping
     public ApiResult<ActionCounts> setActive(@Valid @RequestBody ActionRequest request) {
         return ApiResult.ok(actionService.setActive(
@@ -43,14 +47,22 @@ public class InteractActionController {
                 UserContext.getUserId()));
     }
 
-    /** 某对象的计数与当前用户的动作状态 */
+    /**
+     * 查询对象动作计数
+     *
+     * <p>除点赞/收藏/分享计数外，还带回当前登录用户对该对象的动作状态。</p>
+     */
     @GetMapping("/counts")
     public ApiResult<ActionCounts> counts(@RequestParam String targetType, @RequestParam Long targetId) {
         return ApiResult.ok(actionService.counts(
                 TargetType.of(targetType), targetId, UserContext.getUserId()));
     }
 
-    /** 我的收藏，按收藏时间倒序 */
+    /**
+     * 查询我的收藏列表
+     *
+     * <p>按收藏时间倒序</p>
+     */
     @GetMapping("/favorites")
     public ApiResult<Page<InteractAction>> myFavorites(@RequestParam(defaultValue = "1") long current,
                                                        @RequestParam(defaultValue = "20") long size) {

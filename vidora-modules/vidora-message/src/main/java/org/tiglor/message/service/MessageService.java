@@ -59,7 +59,7 @@ public interface MessageService {
      * <p>
      * <b>已知局限</b>：一条消息只有一行，没有「按接收方分别可见」的表，
      * 所以对任何一方删除都会让它从双方的列表里消失。要做到各自独立删除，
-     * 得引入 message_receiver 关联表，见 docs 的待完成项。
+     * 得引入 message_receiver 关联表，见 .code/ARCHITECTURE.md 的待完成项。
      * </p>
      */
     void delete(Long messageId, Long userId);

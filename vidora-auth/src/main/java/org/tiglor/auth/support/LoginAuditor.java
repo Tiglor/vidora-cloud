@@ -25,7 +25,7 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class LoginAuditor {
 
-    /** user_agent 列宽，与 SQL/09 一致；超长直接截断而不是拒录 */
+    /** user_agent 列宽，与 SQL/vidora_cloud.sql 审计节的 sys_login_log 一致；超长直接截断而不是拒录 */
     private static final int MAX_USER_AGENT = 500;
     private static final int MAX_MSG = 200;
 

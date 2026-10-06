@@ -30,6 +30,7 @@ public class MessageConversation implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
+    /** 会话主键，数据库自增；不用于业务定位——定位一段会话靠 (userIdA, userIdB) 这个有序唯一键 */
     @TableId(type = IdType.AUTO)
     private Long id;
 
@@ -39,8 +40,16 @@ public class MessageConversation implements Serializable {
     /** 两个参与者中 id 较大的那个 */
     private Long userIdB;
 
+    /**
+     * 这一段会话里「最后一条私信」的 {@code message_record.id}，冗余指针。
+     * <p>
+     * 只推进到 id 较大的那条（SQL 里用 GREATEST 兜住并发）；消息被删除后这里可能指向一行 status=0 的记录，
+     * 此时列表接口不再回查出内容。
+     * </p>
+     */
     private Long lastMsgId;
 
+    /** 最后一条私信的落地时间，会话列表按它倒序排；与 {@link #lastMsgId} 同批写入，新建会话前为空 */
     private LocalDateTime lastMsgTime;
 
     /** A（id 较小者）的未读数，派生自 {@code message_record.is_read} */
@@ -49,9 +58,11 @@ public class MessageConversation implements Serializable {
     /** B（id 较大者）的未读数，派生自 {@code message_record.is_read} */
     private Integer unreadCountB;
 
+    /** 建立这段会话的时间，插入时自动填充，调用方传进来的值不算数 */
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 
+    /** 最后一次被私信推进或清未读的时间，插入与更新时都自动填充 */
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updateTime;
 }

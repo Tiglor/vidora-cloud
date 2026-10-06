@@ -21,13 +21,16 @@ public class CategoryRequest {
     @PositiveOrZero(message = "parentId 不能为负")
     private Long parentId;
 
+    /** 分类名，必填；首尾空白会被去掉，同一父级下不能和已有分类重名（大小写不同也算重名） */
     @NotBlank(message = "分类名不能为空")
     @Size(max = 50, message = "分类名不能超过 50 字")
     private String name;
 
+    /** 图标地址，可空，纯空白等同没传 */
     @Size(max = 500, message = "iconUrl 不能超过 500 字")
     private String iconUrl;
 
+    /** 展示顺序，越小越靠前；新增时不传按 0，修改时不传则保持原值 */
     @PositiveOrZero(message = "sortOrder 不能为负")
     private Integer sortOrder;
 

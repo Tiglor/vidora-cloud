@@ -15,9 +15,14 @@ import lombok.Data;
 @Data
 public class CommentCreateRequest {
 
+    /**
+     * 要评论的视频。
+     * <p>回复时服务端会核对被回复的评论确实属于这条视频，跨视频回复直接判参数非法。</p>
+     */
     @NotNull(message = "videoId 不能为空")
     private Long videoId;
 
+    /** 正文，落库前会被 trim——只填空格过不了非空校验；不校验视频是否真实存在 */
     @NotBlank(message = "评论内容不能为空")
     @Size(max = 2000, message = "评论内容不能超过 2000 字")
     private String content;

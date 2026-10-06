@@ -26,6 +26,11 @@ public class SearchRecordRequest {
     @Size(max = 200, message = "keyword 不能超过 200 字")
     private String keyword;
 
+    /**
+     * 这次搜索命中多少条结果，不传按 0 计，负数会被拒。
+     * <p>要报的是命中总数而不是当页条数：一次回报只往当天的均值里加一个样本，
+     * 报分页尺寸会让所有翻页调用方把均值越拉越低，也就看不出「搜得多但搜不到东西」的词了。</p>
+     */
     @PositiveOrZero(message = "resultCount 不能为负")
     private Long resultCount;
 }

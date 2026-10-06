@@ -10,7 +10,7 @@ import java.util.List;
 /**
  * 一次批量写入。
  * <p>
- * 上限 {@code MAX_ITEMS} 是**请求体**层面的限制，不是 SQL 层面的：
+ * 上限 {@code MAX_ITEMS} 是「请求体」层面的限制，不是 SQL 层面的：
  * 服务层还会按 {@code BATCH_CHUNK} 再切成多条 INSERT，避免单条语句超过
  * {@code max_allowed_packet}。两道限制解决的是不同的问题。
  * </p>
@@ -25,6 +25,7 @@ public class RecommendBatchRequest {
     /** 单次请求最多接受的条数 */
     public static final int MAX_ITEMS = 5000;
 
+    /** 一批候选，逐条校验；服务层按 {@code BATCH_CHUNK} 切成多条 INSERT 且不包事务，中途失败会留下已写成功的部分，算法任务重跑整批即可 */
     @NotEmpty(message = "items 不能为空")
     @Size(max = MAX_ITEMS, message = "单次最多写入 " + MAX_ITEMS + " 条，请分批提交")
     @Valid

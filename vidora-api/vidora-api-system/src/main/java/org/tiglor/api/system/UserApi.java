@@ -4,11 +4,14 @@ import org.tiglor.api.system.dto.RemoteUserDTO;
 import org.tiglor.common.core.ApiResult;
 
 /**
- * system-service 对外发布的调用契约，由服务方拥有；调用方依赖本 jar 而不是手抄字段。
+ * system-service 对外发布的 <b>HTTP</b> 调用契约，由服务方拥有；调用方依赖本 jar 而不是手抄字段。
  * <p>
  * 契约里不写 {@code @GetMapping} 之类传输层注解，HTTP 侧由调用方的 Feign 接口
- * {@code extends} 本接口补齐。将来接 Dubbo provider 时直接 {@code implements} 同一份接口，
- * 届时的返回值应换成裸 DTO + 异常传播（{@code ApiResult} 是 HTTP 外壳，见 docs/ARCHITECTURE.md 6.2.1）。
+ * {@code extends} 本接口补齐（{@code @Override} 保证签名不漂移）。
+ * <p>
+ * Dubbo 出口没有复用本接口，而是另开了 {@link RemoteUserApi} / {@link RemoteClientApi}：
+ * {@code ApiResult} 是 HTTP 的响应外壳，服务间调用不该被强制套上它，所以那边的返回类型是裸 DTO。
+ * 两套出口的归属判据见 .code/ARCHITECTURE.md 6.2.1。
  */
 public interface UserApi {
 

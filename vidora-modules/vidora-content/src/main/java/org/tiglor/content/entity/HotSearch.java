@@ -30,24 +30,30 @@ public class HotSearch implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
+    /** 主键，数据库自增 */
     @TableId(type = IdType.AUTO)
     private Long id;
 
+    /** 上榜词，与 {@code rankDate} 合起来才是那一行（{@code uk_keyword_date}）；列是 _ci 排序规则，大小写不同算同一个词 */
     private String keyword;
 
+    /** 热度分，重排名次时的主排序键；写入不传按 0 */
     private Integer heatScore;
 
     /** 榜单排名，1 开始；由 {@code HotSearchService#rebuild} 按热度重算，不接受外部直接指定 */
     @TableField("`rank`")
     private Integer rank;
 
+    /** 这个词的搜索次数，热度相同时的重排次排序键；由调用方随 upsert 上报，本模块不自己统计 */
     private Long searchCount;
 
     /** 状态：0-下线 1-上线 */
     private Integer status;
 
+    /** 所属榜单日期，同一词每天最多一行；请求不传时服务按今天补 */
     private LocalDate rankDate;
 
+    /** 创建时间，插入时自动填充；表上没有 update_time，所以看不出这一行最后一次改动是何时 */
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 }

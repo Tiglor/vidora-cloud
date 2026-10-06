@@ -5,10 +5,10 @@ spring:
   application:
     name: interact-service
 
-  # Datasource
+  # Datasource：单库 vidora_cloud。库不隔离了，本服务只管 interact_* 那节表；user_follow 按归属在用户域，由 system-service 写
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://127.0.0.1:3306/interact_service?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+    url: jdbc:mysql://127.0.0.1:3306/vidora_cloud?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
     username: ${SPRING_DATASOURCE_USERNAME:root}
     password: ${SPRING_DATASOURCE_PASSWORD:123456}
 
@@ -20,7 +20,7 @@ spring:
       password: ${SPRING_DATA_REDIS_PASSWORD:xiao123456}
       database: 0
 
-  # Nacos：当前只用服务注册与发现，配置中心暂缓（重新启用步骤见 docs/ARCHITECTURE.md 6.2）
+  # Nacos：当前只用服务注册与发现，配置中心暂缓（重新启用步骤见 .code/ARCHITECTURE.md 6.2）
   cloud:
     nacos:
       discovery:
@@ -39,6 +39,8 @@ mybatis-plus:
 
 # SpringDoc OpenAPI
 springdoc:
+  # 接口说明取自 controller/service 上的 Javadoc（therapi 编译期烘进 target/classes，处理器见根 pom），不是 Swagger 注解
+  enable-javadoc: true
   api-docs:
     enabled: true
     path: /v3/api-docs

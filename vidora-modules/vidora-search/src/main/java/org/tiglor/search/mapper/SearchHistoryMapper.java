@@ -12,7 +12,7 @@ public interface SearchHistoryMapper extends BaseMapper<SearchHistory> {
     /**
      * 记一次搜索：命中 {@code uk_user_keyword} 就把次数加一，否则插一行新的。
      * <p>
-     * 语句里**不写** {@code search_count} 的初值以外的任何列：
+     * 语句里「不写」 {@code search_count} 的初值以外的任何列：
      * {@code search_count} 靠 DDL 的 {@code DEFAULT 1}，
      * {@code create_time} 和 {@code last_search_time} 靠 {@code DEFAULT CURRENT_TIMESTAMP}，
      * 而 {@code last_search_time} 还带 {@code ON UPDATE CURRENT_TIMESTAMP}，

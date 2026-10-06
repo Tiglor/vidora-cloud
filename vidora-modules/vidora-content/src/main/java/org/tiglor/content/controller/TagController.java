@@ -36,19 +36,35 @@ public class TagController {
 
     private final TagService service;
 
-    /** 标签云：启用状态、按使用次数倒序 */
+    /**
+     * 查询热门标签列表
+     *
+     * <p>标签云用：只给启用状态，按使用次数倒序。</p>
+     */
     @GetMapping("/hot")
     public ApiResult<List<Tag>> hot(@RequestParam(defaultValue = "20") int limit) {
         return ApiResult.ok(service.hot(clampLimit(limit)));
     }
 
-    /** 上传页的标签联想，按名字前缀匹配 */
+    /**
+     * 查询标签联想列表
+     *
+     * <p>上传页输入框用，按名字前缀匹配。</p>
+     */
     @GetMapping("/suggest")
     public ApiResult<List<Tag>> suggest(@RequestParam(required = false) String keyword,
                                         @RequestParam(defaultValue = "10") int limit) {
         return ApiResult.ok(service.suggest(keyword, clampLimit(limit)));
     }
 
+    /**
+     * 标签分页
+     *
+     * <p>管理端列表，按 {@code use_count} 倒序，最热的在前。</p>
+     *
+     * @param keyword 名字包含匹配（{@code LIKE '%kw%'}），和 {@code /suggest} 的前缀匹配不是一回事
+     * @param status  0-禁用 / 1-启用；不传时两种都列，而 {@code /hot} 和 {@code /suggest} 只给启用的
+     */
     @GetMapping("/page")
     @PreAuthorize("hasAuthority('content:tag:manage')")
     public ApiResult<Page<Tag>> page(@RequestParam(defaultValue = "1") long current,
@@ -58,6 +74,11 @@ public class TagController {
         return ApiResult.ok(service.page(current, size, keyword, status));
     }
 
+    /**
+     * 新建标签
+     *
+     * <p>名字全表排重（大小写不同算同一个），初始使用次数 0、直接建成启用态。</p>
+     */
     @PostMapping
     @PreAuthorize("hasAuthority('content:tag:manage')")
     @OperLog(title = "标签管理", type = BusinessType.INSERT)
@@ -65,7 +86,11 @@ public class TagController {
         return ApiResult.ok(service.create(request.getName()));
     }
 
-    /** 禁用(0) / 启用(1) */
+    /**
+     * 修改标签状态
+     *
+     * <p>0-禁用 / 1-启用。</p>
+     */
     @PutMapping("/{id}/status")
     @PreAuthorize("hasAuthority('content:tag:manage')")
     @OperLog(title = "标签管理", type = BusinessType.CHANGE_STATUS)
@@ -74,7 +99,11 @@ public class TagController {
         return ApiResult.ok();
     }
 
-    /** 只有没人用的标签才允许删除，还在用的请改成禁用 */
+    /**
+     * 删除标签
+     *
+     * <p>只有没人用的标签才允许删除，还在用的请改成禁用。</p>
+     */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('content:tag:manage')")
     @OperLog(title = "标签管理", type = BusinessType.DELETE)

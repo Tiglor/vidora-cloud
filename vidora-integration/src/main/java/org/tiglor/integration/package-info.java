@@ -13,6 +13,6 @@
  * 那等于把对方的字段变更变成全仓库的破坏性改动。
  *
  * <p>业务服务在真正需要某个外部调用之前，不要在自己的 pom 里引本模块（与
- * docs/ARCHITECTURE.md 6.2.1「不为没有调用需求的服务强行引入依赖」一致）。
+ * .code/ARCHITECTURE.md 6.2.1「不为没有调用需求的服务强行引入依赖」一致）。
  */
 package org.tiglor.integration;

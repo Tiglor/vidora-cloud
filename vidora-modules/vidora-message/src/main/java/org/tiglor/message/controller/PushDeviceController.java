@@ -31,19 +31,33 @@ public class PushDeviceController {
 
     private final PushDeviceService pushDeviceService;
 
-    /** 我当前有效的推送通道。一个用户最多 3 种 deviceType × 4 种 vendor，不分页 */
+    /**
+     * 查询我的推送通道
+     *
+     * <p>只给当前有效的通道。一个用户最多 3 种 deviceType × 4 种 vendor，不分页。</p>
+     */
     @GetMapping
     public ApiResult<List<PushDevice>> listMine() {
         return ApiResult.ok(pushDeviceService.listMine(UserContext.getUserId()));
     }
 
-    /** 绑定或刷新一个推送通道；同一条 token 在别的用户名下的绑定会同时失效 */
+    /**
+     * 绑定推送通道
+     *
+     * <p>已存在的通道换 token 并重新置为有效；同一条 token 在别的用户名下的绑定会同时失效。</p>
+     */
     @PostMapping
     public ApiResult<PushDevice> bind(@Valid @RequestBody PushDeviceRequest request) {
         return ApiResult.ok(pushDeviceService.bind(request, UserContext.getUserId()));
     }
 
-    /** 解绑。deviceType / vendor 都省略表示解绑全部通道，返回被解绑的数量 */
+    /**
+     * 解绑推送通道
+     *
+     * <p>返回被解绑的数量。</p>
+     *
+     * @param deviceType 与 {@code vendor} 都省略表示解绑全部通道
+     */
     @DeleteMapping
     public ApiResult<Integer> unbind(@RequestParam(required = false) String deviceType,
                                      @RequestParam(required = false) String vendor) {

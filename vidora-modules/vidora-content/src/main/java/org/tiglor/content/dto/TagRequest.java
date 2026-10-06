@@ -11,6 +11,7 @@ import lombok.Data;
 @Data
 public class TagRequest {
 
+    /** 标签名，必填；首尾空白会被去掉，全表已有同名（大小写不同也算）时这次创建会被拒 */
     @NotBlank(message = "标签名不能为空")
     @Size(max = 50, message = "标签名不能超过 50 字")
     private String name;

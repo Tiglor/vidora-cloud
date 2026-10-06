@@ -14,7 +14,7 @@ public interface HotSearchMapper extends BaseMapper<HotSearch> {
     /**
      * 按 {@code uk_keyword_date(keyword, rank_date)} 建或改一个上榜词。
      * <p>
-     * 命中已有行时**不更新 {@code rank}**：排名是 {@code HotSearchService#rebuild} 按整榜热度
+     * 命中已有行时「不更新 {@code rank}」：排名是 {@code HotSearchService#rebuild} 按整榜热度
      * 算出来的相对位置，让单个词的写入去改它，会把别的词挤到重复的排名上。
      * 新行的 rank 先给 0，等重算时统一分配。
      * </p>

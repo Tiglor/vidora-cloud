@@ -8,9 +8,9 @@ import java.time.LocalDateTime;
 /**
  * 私信会话。
  * <p>
- * 会话行是**派生数据**：它由私信消息聚合而来，存在的意义只是让「会话列表」不必每次都对
+ * 会话行是「派生数据」：它由私信消息聚合而来，存在的意义只是让「会话列表」不必每次都对
  * {@code message_record} 做一遍 GROUP BY。因此未读数的唯一真相是 {@code message_record.is_read}，
- * 这里的 unread_count_a/b 是它的缓存，标记已读时按实测值**重算**而不是直接清 0。
+ * 这里的 unread_count_a/b 是它的缓存，标记已读时按实测值「重算」而不是直接清 0。
  * </p>
  * <p>
  * 存储上 (user_id_a, user_id_b) 一律归一化成 (min, max)，本接口的入参和出参都用「我 / 对面」表达，

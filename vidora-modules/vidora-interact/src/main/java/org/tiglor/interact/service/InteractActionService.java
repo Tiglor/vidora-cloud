@@ -10,7 +10,7 @@ import org.tiglor.interact.enums.TargetType;
  * 点赞 / 收藏 / 分享。
  * <p>
  * 三种动作共用 {@code interact_action} 一张表，靠 {@code uk_user_target_action} 保证
- * 「一个用户对一个对象的一种动作只有一行」，所以点赞/取消点赞是**翻转 status**而不是增删行——
+ * 「一个用户对一个对象的一种动作只有一行」，所以点赞/取消点赞是「翻转 status」而不是增删行——
  * 删行的话历史就没了，而且并发下容易和插入撞唯一键。
  * </p>
  */

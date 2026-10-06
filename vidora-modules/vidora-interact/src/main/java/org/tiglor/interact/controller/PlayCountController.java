@@ -25,13 +25,21 @@ public class PlayCountController {
 
     private final PlayCountService playCountService;
 
-    /** 上报一次播放；返回 false 表示落在去重窗口内，本次未计数 */
+    /**
+     * 上报一次播放
+     *
+     * <p>返回 false 表示落在去重窗口内，本次未计数</p>
+     */
     @PostMapping("/{videoId}")
     public ApiResult<Boolean> reportPlay(@PathVariable Long videoId) {
         return ApiResult.ok(playCountService.reportPlay(videoId, UserContext.getUserId()));
     }
 
-    /** 累计计数（准实时，最多有 60 秒缓存延迟） */
+    /**
+     * 查询视频累计计数
+     *
+     * <p>准实时，最多有 60 秒缓存延迟</p>
+     */
     @GetMapping("/{videoId}")
     public ApiResult<VideoTotals> totals(@PathVariable Long videoId) {
         return ApiResult.ok(playCountService.totals(videoId));

@@ -36,7 +36,11 @@ public class HotSearchController {
 
     private final HotSearchService service;
 
-    /** 某天上线中的词，按 rank 升序；不传日期就是今天 */
+    /**
+     * 查询热搜榜
+     *
+     * <p>某天上线中的词，按 rank 升序；不传日期就是今天。</p>
+     */
     @GetMapping
     public ApiResult<List<HotSearch>> board(@RequestParam(required = false)
                                             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
@@ -44,7 +48,9 @@ public class HotSearchController {
     }
 
     /**
-     * 管理端看板：某天全部词条，含已下线的。
+     * 查询热搜词条列表
+     *
+     * <p>管理端看板，列出某天全部词条，含已下线的，可按状态筛。</p>
      * <p>
      * 网关把 {@code /api/hot-searches/} 整个前缀锁在 clientKey=admin，这条又不在匿名 GET 清单里，
      * 所以它不像 {@code GET /hot-searches} 那样对访客开放。
@@ -58,7 +64,11 @@ public class HotSearchController {
         return ApiResult.ok(service.adminBoard(date == null ? LocalDate.now() : date, status));
     }
 
-    /** 加词或刷新热度。rank 由服务端算，请求体里传了也不认 */
+    /**
+     * 添加或刷新热搜词
+     *
+     * <p>rank 由服务端算，请求体里传了也不认。</p>
+     */
     @PostMapping
     @PreAuthorize("hasAuthority('content:hotsearch:manage')")
     @OperLog(title = "热搜管理", type = BusinessType.INSERT)
@@ -66,7 +76,11 @@ public class HotSearchController {
         return ApiResult.ok(service.upsert(request));
     }
 
-    /** 按当前热度重排某天榜单，返回真正被改动的行数 */
+    /**
+     * 重排热搜榜
+     *
+     * <p>按当前热度重排某天榜单，返回真正被改动的行数。</p>
+     */
     @PostMapping("/rebuild")
     @PreAuthorize("hasAuthority('content:hotsearch:manage')")
     @OperLog(title = "热搜管理", type = BusinessType.UPDATE)
@@ -75,7 +89,11 @@ public class HotSearchController {
         return ApiResult.ok(service.rebuild(date == null ? LocalDate.now() : date));
     }
 
-    /** 上线(1) / 下线(0)，下线敏感词走这里 */
+    /**
+     * 修改热搜词状态
+     *
+     * <p>上线(1) / 下线(0)，下线敏感词走这里。</p>
+     */
     @PutMapping("/{id}/status")
     @PreAuthorize("hasAuthority('content:hotsearch:manage')")
     @OperLog(title = "热搜管理", type = BusinessType.CHANGE_STATUS)

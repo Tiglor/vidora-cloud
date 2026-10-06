@@ -8,17 +8,16 @@
 
 按顺序做完，缺一项就补做，不要跳：
 
-1. `AGENTS.md`（仓库根）—— 项目定位与命令。
-2. 本文件 + `coding-standards.md` + `requirements.md`。
-3. `pom.xml`（根）—— 真实的版本托管与 `<modules>`。**所有版本号只在这里**，子模块 pom 不写 version；要加依赖先在 `dependencyManagement` 里确认已有托管。
-4. `docs/ARCHITECTURE.md` 第 0 节「Boot 4 / JDK 25 迁移要点」—— 六条已付费的坑，别重新踩。注意其正文存在与代码不一致处（例如技术栈表写 MyBatis-Plus 3.5.14，而根 `pom.xml` 是 `3.5.17`）：**以 `pom.xml` 为准**。
-5. 你要改的那个服务的现有代码，至少各读一个同类样本：
+1. 本文件 + `coding-standards.md` + `requirements.md` + `README.md`（项目定位、构建命令、目录速览都在 README.md）。
+2. `pom.xml`（根）—— 真实的版本托管与 `<modules>`。**所有版本号只在这里**，子模块 pom 不写 version；要加依赖先在 `dependencyManagement` 里确认已有托管。
+3. `ARCHITECTURE.md` 第 0 节「Boot 4 / JDK 25 迁移要点」—— 六条已付费的坑，别重新踩。注意其正文存在与代码不一致处（例如技术栈表写 MyBatis-Plus 3.5.14，而根 `pom.xml` 是 `3.5.17`）：**以 `pom.xml` 为准**。
+4. 你要改的那个服务的现有代码，至少各读一个同类样本：
    - 动接口 → `vidora-modules/vidora-content/src/main/java/org/tiglor/content/controller/CategoryController.java`（分层最完整的一套 CRUD）
    - 动业务实现 → 同目录 `service/impl/CategoryServiceImpl.java`（校验、缓存失效、幂等写法都在这里）
    - 动权限/审计 → `vidora-modules/vidora-system/src/main/java/org/tiglor/system/controller/MenuController.java`、`OperLogController.java`
    - 动鉴权链路 → `vidora-gateway/src/main/java/org/tiglor/gateway/filter/GatewayAuthFilter.java` + `vidora-common/common-core/src/main/java/org/tiglor/common/core/security/HeaderAuthenticationFilter.java`
-6. `vidora-gateway/src/main/resources/application.yml` —— **路由的唯一出处**。新接口没有对应 `Path=` 断言就是 404，跟 Controller 写得对不对无关。
-7. 涉及响应结构、异常、日志、traceId 时，读 `vidora-common/common-core/` 与 `vidora-common/common-log/` 的对应类，不要在业务服务里重新实现一遍。
+5. `vidora-gateway/src/main/resources/application.yml` —— **路由的唯一出处**。新接口没有对应 `Path=` 断言就是 404，跟 Controller 写得对不对无关。
+6. 涉及响应结构、异常、日志、traceId 时，读 `vidora-common/common-core/` 与 `vidora-common/common-log/` 的对应类，不要在业务服务里重新实现一遍。
 
 ---
 
@@ -82,8 +81,8 @@ mvn -o -Dmaven.legacyLocalRepo=true compile                          # 全仓
 
 - 没有 Maven Wrapper（仓库里没有 `mvnw`），只有全局 `mvn`（`D:/apache-maven-3.9.6/bin/mvn`）。
 - 没有 checkstyle / spotless / sonar 配置文件，因此**不存在「格式检查通过」「lint 干净」这种说法**。
-- 没有 Flyway / Liquibase：`SQL/*.sql` 是纯手工脚本，见 `.code/skills/add-a-db-migration.md`。
-- Nacos **只做服务注册与发现**，配置中心未接入：所有配置都在各服务自己的 `application.yml` 里（该文件内的注释就是这么写的，恢复步骤见 `docs/ARCHITECTURE.md` 6.2）。所以「改配置去 Nacos 推」是错的。
+- 没有 Flyway / Liquibase：`SQL/vidora_cloud.sql` 是纯手工脚本，见 `.code/skills/add-a-db-migration.md`。
+- Nacos **只做服务注册与发现**，配置中心未接入：所有配置都在各服务自己的 `application.yml` 里（该文件内的注释就是这么写的，恢复步骤见 `ARCHITECTURE.md` 6.2）。所以「改配置去 Nacos 推」是错的。
 
 ### 3.4 运行时验证（需要用户同意起服务）
 
@@ -99,11 +98,11 @@ mvn -o -Dmaven.legacyLocalRepo=true compile                          # 全仓
 | --- | --- | --- |
 | 依赖变更 | 改任何 `pom.xml` 的 version / 新增或删依赖 / 升 lombok、mybatis-plus、nacos-client、spring-boot 版本 | 根 POM 的注释记录了成套的版本约束（Nacos 全家桶必须同版本、MP 分页器拆构件、RocketMQ 故意不用 starter），单点升级会连锁炸 |
 | 本地仓库 | `mvn install` / `mvn deploy` / 清理 `F:\repository` | 污染或摧毁离线缓存，之后所有模块都编不过 |
-| 数据库 | 连 MySQL 执行任何写 SQL、跑 `SQL/*.sql`、DDL、`TRUNCATE`、建库 | 迁移由用户手工执行；审计表按设计无删除口（见 `OperLogController` 注释） |
+| 数据库 | 连 MySQL 执行任何写 SQL、跑 `SQL/vidora_cloud.sql`、DDL、`TRUNCATE`、建库 | **默认**由用户手工执行；只有用户在当前会话里点名要你跑才可以跑，跑完必须贴出执行前后的库状态（审计表按设计无删除口，见 `OperLogController` 注释） |
 | Git 写操作 | `git commit` / `git push` / `git reset --hard` / `git checkout --` / `git clean -f` / 改写历史 | 工作区有 159 项未提交改动，任何 reset/checkout/clean 都会直接吃掉别人的活 |
 | 绕过检查 | `--no-verify`、跳过 hook、改 CI 配置 | 不允许 |
-| 删文件 | 删除任何既有源文件、`SQL/*.sql`、`deploy/.env.example`、文档 | 不可逆且难发现 |
-| 格式化 | 对 Java/pom/yml/SQL 做整文件格式化、批量统一行尾 | **行尾逐文件混用**（实测：`pom.xml` CRLF、`vidora-gateway/.../application.yml` LF、`SQL/01` CRLF、`SQL/09` LF、`CategoryController.java` CRLF）。统一后 diff 会变成全文重写，看不出真实改动 |
+| 删文件 | 删除任何既有源文件、`SQL/vidora_cloud.sql`、`deploy/.env.example`、文档 | 不可逆且难发现 |
+| 格式化 | 对 Java/pom/yml/SQL 做整文件格式化、批量统一行尾 | **行尾逐文件混用**（实测：`pom.xml` CRLF、`vidora-gateway/.../application.yml` LF、`SQL/vidora_cloud.sql` LF、`CategoryController.java` CRLF；同为服务 pom，`vidora-system/pom.xml` 是 LF 而 `vidora-auth/pom.xml` 是 CRLF）。统一后 diff 会变成全文重写，看不出真实改动 |
 | Git 配置 | 新增 `.gitattributes`、改 `core.autocrlf`、`git add --renormalize` | 见本节末尾的成因说明 —— 这会一次性重写全仓的行尾表示 |
 | 配置 | 改 `application.yml` 的端口、datasource url、`jwt.secret`、redis 口令、Nacos 地址；新增环境变量 | 影响联调目标；`deploy/.env` 已被 gitignore，改错了别人复现不了 |
 | 服务 | 启停/重启网关或任一微服务、改 `deploy/docker-compose.yml` 后 up | 属于用户的运行环境 |
@@ -119,7 +118,7 @@ mvn -o -Dmaven.legacyLocalRepo=true compile                          # 全仓
 - checkout 时 Git 把仓库内的 LF 写成工作区的 CRLF；
 - 提交时再把 CRLF 折回 LF。
 
-结果就是同一个文件「在磁盘上是 CRLF、在 diff 里像 LF」，不同文件还各自停在不同的状态（`SQL/01` CRLF vs `SQL/09` LF）。这解释了为什么 `git diff` 会莫名提示 `LF will be replaced by CRLF the next time Git touches it`。
+结果就是同一个文件「在磁盘上是 CRLF、在 diff 里像 LF」，不同文件还各自停在不同的状态（同为服务 pom，`vidora-system/pom.xml` 是 LF 而 `vidora-auth/pom.xml` 是 CRLF）。这解释了为什么 `git diff` 会莫名提示 `LF will be replaced by CRLF the next time Git touches it`。
 
 对 AI 的三个实际影响：
 
@@ -137,10 +136,10 @@ mvn -o -Dmaven.legacyLocalRepo=true compile                          # 全仓
 2. **改响应外壳与异常语义**：`common-core/.../ApiResult.java`、`GlobalExceptionHandler.java`、`ResultCode.java`。九个服务和三端前端都建立在 `{code,message,data}` + 「HTTP 状态码与业务码一致」之上。
 3. **改契约形状**：Controller 方法的返回类型、DTO 字段名、分页参数名（现在是 `current` / `size`）。这是跨端变更，会影响 web / mobile / admin 三个仓库，必须由用户决策何时同步。
 4. **新增第三方依赖或换实现**（哪怕只是换个 HTTP 客户端、加个工具库）。
-5. **动 `common-*` 公共模块**：一处改动放大到九个服务。尤其是 `common-user` 的实体（auth 与 system 共用同一个 `user_service` 库）。
+5. **动 `common-*` 公共模块**：一处改动放大到九个服务。**动 `vidora-api-*` 契约同理**——接口签名或 DTO 字段一改，provider（`vidora-system` 的 `dubbo/`、`controller/`）与所有 consumer（`vidora-auth`、`vidora-video`）同时受影响，而 RPC 那条路是运行期序列化，编译绿不代表对得上。
 6. **改审计链路**：`common-log` 的切面、`AuditJson` 脱敏规则、`LogSink` 的 Bean 选择逻辑、`logback-base.xml`。合规设施，改错是静默失效。
 7. **删除或重命名任何 Controller 方法 / 公开接口路径**：三端可能都在调。
-8. **新建 `SQL/NN_*.sql` 之外的迁移载体**，或对已提交的 `01`–`07` 做结构性重写（补种子的追加式 INSERT 是可以的，历史上 38–48 就是这么加的）。
+8. **新建第二个 SQL 文件或任何迁移载体**，或对 `SQL/vidora_cloud.sql` 里已定型的建表段做结构性重写（往节尾追加补种子的 `INSERT IGNORE` 是可以的，历史上菜单 38–48 就是这么加的）。
 9. 任何**大范围重写**（批量换 `@Autowired`→构造注入、把所有 service 改成不用 MP 的 `lambdaQuery`、统一改名）。本仓库风格高度一致，重写会让 diff 失去可读性。
 
 ---
@@ -157,12 +156,12 @@ mvn -o -Dmaven.legacyLocalRepo=true compile                          # 全仓
 **未验证**：把没做过但相关的项显式列出来，不要沉默。例：
 
 - 未运行服务，新路由的实际转发与 StripPrefix 行为本次未验证。
-- `SQL/09_sys_log.sql` 未在库上执行（按约定由用户手工执行），因此菜单种子与审计落库路径未验。
+- 新表的 DDL 未在库上执行（按约定默认由用户手工执行），因此依赖它的查询与菜单种子未验。
 - 三端前端的同名调用点未同步检查（不在本次范围）。
 
 硬性禁令：
 
-- **不要把没跑过的检查说成跑过。** 包括但不限于：「测试通过」（基础设施不完整）、「lint 干净」（不存在）、「迁移已生效」（AI 无权执行）、「前端也验过了」（除非真在同级仓库核对过对应 Controller 消费点）。
+- **不要把没跑过的检查说成跑过。** 包括但不限于：「测试通过」（基础设施不完整）、「lint 干净」（不存在）、「DDL 已在库上生效」（默认 AI 无权执行）、「前端也验过了」（除非真在同级仓库核对过对应 Controller 消费点）。
 - 不要因为「代码看起来对」就写「已验证」。视觉判断不是验证。
 - 无法验证时直说阻塞在哪（服务没起、缺 admin 账号、库没建、迁移未执行），而不是含糊过去。
 - 结论与证据分离：先给证据（命令 / 文件路径 / 行号），再给结论。

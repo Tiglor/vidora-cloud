@@ -3,7 +3,10 @@ package org.tiglor.recommend.service.impl;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.spring.service.impl.ServiceImpl;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.stereotype.Service;
 import org.tiglor.common.core.BizException;
 import org.tiglor.common.core.ResultCode;
@@ -19,6 +22,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 推荐候选。
@@ -30,6 +34,7 @@ import java.util.List;
  */
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class RecommendResultServiceImpl extends ServiceImpl<RecommendResultMapper, RecommendResult>
         implements RecommendResultService {
 
@@ -37,6 +42,13 @@ public class RecommendResultServiceImpl extends ServiceImpl<RecommendResultMappe
     public static final int BATCH_CHUNK = 500;
 
     private static final long MAX_PAGE_SIZE = 100L;
+
+    /** 获取推荐流的分布式锁等待时间（秒），避免大量请求同时争锁导致雪崩 */
+    private static final int LOCK_WAIT_SECONDS = 2;
+    /** 锁自动释放时间（秒）——取候选 + 标记曝光正常 10ms 内完成，给 30s 兜底防止死锁 */
+    private static final int LOCK_LEASE_SECONDS = 30;
+
+    private final RedissonClient redissonClient;
 
     @Override
     public List<RecommendResult> feed(Long userId, String scene, int size) {
@@ -48,36 +60,59 @@ public class RecommendResultServiceImpl extends ServiceImpl<RecommendResultMappe
         String sceneCode = RecommendScene.of(scene).getCode();
         int limit = (int) Math.min(Math.max(size, 1), MAX_FEED_SIZE);
 
-        // searchCount=false：feed 只要这一屏，不需要知道总共有多少条候选
-        Page<RecommendResult> page = new Page<>(1, limit, false);
-        lambdaQuery()
-                .eq(RecommendResult::getUserId, uid)
-                .eq(RecommendResult::getScene, sceneCode)
-                .eq(RecommendResult::getIsExposed, RecommendResult.FLAG_NO)
-                .orderByDesc(RecommendResult::getScore)
-                // id 是必需的兜底排序键：分数相同的候选没有稳定顺序的话，
-                // 同一屏刷新两次会给出不同的排列
-                .orderByAsc(RecommendResult::getId)
-                .page(page);
-        List<RecommendResult> candidates = page.getRecords();
-        if (candidates.isEmpty()) {
-            return candidates;
-        }
+        // 每个用户每个场景一把独立的锁：同一用户并发刷新 feed 时不会重复下发同一屏候选
+        String lockKey = "recommend:feed:" + uid + ":" + sceneCode;
+        RLock lock = redissonClient.getLock(lockKey);
+        boolean locked = false;
+        try {
+            locked = lock.tryLock(LOCK_WAIT_SECONDS, LOCK_LEASE_SECONDS, TimeUnit.SECONDS);
+            if (!locked) {
+                // 没抢到锁说明这个用户正在刷新 feed，直接返回空列表让前端静默重试——
+                // 不降级返回旧候选（避免曝光计数被置两次），也不阻塞等锁（避免请求堆积）
+                log.debug("推荐流锁竞争，返回空列表让前端重试：userId={} scene={}", uid, sceneCode);
+                return List.of();
+            }
 
-        List<Long> ids = candidates.stream().map(RecommendResult::getId).toList();
-        // 条件更新（带上 is_exposed = 0）而不是无条件置位：并发刷新时另一个请求可能已经翻过了，
-        // 影响行数会小于 ids.size()。项目还没选分布式锁，这里只能把竞争记下来——
-        // 后果是这个人短时间内可能看到重复的一屏，曝光计数本身仍然是对的
-        int claimed = baseMapper.update(null, Wrappers.<RecommendResult>lambdaUpdate()
-                .set(RecommendResult::getIsExposed, RecommendResult.FLAG_YES)
-                .eq(RecommendResult::getUserId, uid)
-                .in(RecommendResult::getId, ids)
-                .eq(RecommendResult::getIsExposed, RecommendResult.FLAG_NO));
-        if (claimed < ids.size()) {
-            log.warn("推荐流并发竞争，同一屏可能被下发两次：userId={} scene={} 取出={} 标记={}",
-                    uid, sceneCode, ids.size(), claimed);
+            // searchCount=false：feed 只要这一屏，不需要知道总共有多少条候选
+            Page<RecommendResult> page = new Page<>(1, limit, false);
+            lambdaQuery()
+                    .eq(RecommendResult::getUserId, uid)
+                    .eq(RecommendResult::getScene, sceneCode)
+                    .eq(RecommendResult::getIsExposed, RecommendResult.FLAG_NO)
+                    .orderByDesc(RecommendResult::getScore)
+                    // id 是必需的兜底排序键：分数相同的候选没有稳定顺序的话，
+                    // 同一屏刷新两次会给出不同的排列
+                    .orderByAsc(RecommendResult::getId)
+                    .page(page);
+            List<RecommendResult> candidates = page.getRecords();
+            if (candidates.isEmpty()) {
+                return candidates;
+            }
+
+            List<Long> ids = candidates.stream().map(RecommendResult::getId).toList();
+            // 条件更新（带上 is_exposed = 0）而不是无条件置位：
+            // 并发时另一个请求可能已经翻过了，影响行数会小于 ids.size()，
+            // 但现在有锁保护后这里应该始终等于 ids.size()，保留条件只是双保险
+            int claimed = baseMapper.update(null, Wrappers.<RecommendResult>lambdaUpdate()
+                    .set(RecommendResult::getIsExposed, RecommendResult.FLAG_YES)
+                    .eq(RecommendResult::getUserId, uid)
+                    .in(RecommendResult::getId, ids)
+                    .eq(RecommendResult::getIsExposed, RecommendResult.FLAG_NO));
+            if (claimed < ids.size()) {
+                log.warn("推荐流标记数量小于取出数量（锁保护下不应发生）：userId={} scene={} 取出={} 标记={}",
+                        uid, sceneCode, ids.size(), claimed);
+            }
+            return candidates;
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.warn("获取推荐流锁被中断：userId={} scene={}", uid, sceneCode, e);
+            return List.of();
+        } finally {
+            if (locked && lock.isHeldByCurrentThread()) {
+                lock.unlock();
+            }
         }
-        return candidates;
     }
 
     @Override

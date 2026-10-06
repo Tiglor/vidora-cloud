@@ -35,20 +35,32 @@ public class FeedConfigController {
 
     private final FeedConfigService service;
 
-    /** key → value 的扁平视图，走缓存 */
+    /**
+     * 查询推荐流配置项
+     *
+     * <p>{@code key → value} 的扁平视图，走缓存，给推荐服务在算法里直接取值。</p>
+     */
     @GetMapping("/configs/{feedType}")
     public ApiResult<Map<String, String>> configs(@PathVariable String feedType) {
         return ApiResult.ok(service.configsOf(feedType));
     }
 
-    /** 管理端列表，带 id 与 description */
+    /**
+     * 查询推荐流配置列表
+     *
+     * <p>管理端用，带 id 与 description。</p>
+     */
     @GetMapping("/list")
     @PreAuthorize("hasAuthority('content:feed:manage')")
     public ApiResult<List<FeedConfig>> list(@RequestParam String feedType) {
         return ApiResult.ok(service.listByFeedType(feedType));
     }
 
-    /** (feedType, configKey) 相同就是改值，不会多出一行 */
+    /**
+     * 新增或修改配置项
+     *
+     * <p>{@code (feedType, configKey)} 相同就是改值，不会多出一行。</p>
+     */
     @PutMapping
     @PreAuthorize("hasAuthority('content:feed:manage')")
     @OperLog(title = "信息流配置", type = BusinessType.UPDATE)
@@ -56,6 +68,16 @@ public class FeedConfigController {
         return ApiResult.ok(service.upsert(request));
     }
 
+    /**
+     * 删除配置项
+     *
+     * <p>物理删行，表上没有 {@code is_deleted}。</p>
+     * <p>
+     * 删掉之后这个 key 就不出现在 {@code /configs/{feedType}} 的 Map 里，
+     * 对推荐服务等同于「没配」，它会回落到代码里的默认参数。想恢复就重新 upsert 同一个 key，
+     * 那会是一行新的 id。
+     * </p>
+     */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('content:feed:manage')")
     @OperLog(title = "信息流配置", type = BusinessType.DELETE)

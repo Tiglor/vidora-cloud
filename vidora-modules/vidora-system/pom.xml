@@ -24,10 +24,25 @@
             <groupId>org.tiglor</groupId>
             <artifactId>vidora-common-log</artifactId>
         </dependency>
-        <!-- RBAC 实体与 Mapper（与 auth-service 共用 user_service 库） -->
+        <!-- 本服务发布的调用契约（UserApi / RemoteUserApi / RemoteClientApi），provider 侧 implements 它们 -->
         <dependency>
             <groupId>org.tiglor</groupId>
-            <artifactId>vidora-common-user</artifactId>
+            <artifactId>vidora-api-system</artifactId>
+        </dependency>
+        <!-- RPC：把 RemoteUserApi / RemoteClientApi 以 @DubboService 暴露给 auth-service -->
+        <dependency>
+            <groupId>org.apache.dubbo</groupId>
+            <artifactId>dubbo-spring-boot-starter</artifactId>
+        </dependency>
+        <!-- 只为了让 Dubbo 启动期的 JSON 实现探测能走完，本工程不用 gson。
+             JsonUtils.loadExtensions 用 ServiceLoader 遍历 fastjson2/fastjson/gson/jackson，
+             它的 try 只包住 next() 没包住 hasNext()：gson 缺席时加载 GsonImpl 抛的
+             NoClassDefFoundError 会从 hasNext() 直接冒出来，服务启动即失败。
+             版本由 spring-boot-dependencies 管（2.13.2），不在此显式钉。 -->
+        <dependency>
+            <groupId>com.google.code.gson</groupId>
+            <artifactId>gson</artifactId>
+            <scope>runtime</scope>
         </dependency>
         <!-- 菜单树读多改少，走 Redis 缓存 -->
         <dependency>
@@ -84,6 +99,11 @@
         <dependency>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+        </dependency>
+        <!-- Javadoc → OpenAPI：让 controller 上的 Javadoc 直接成为接口说明（见根 pom 的 scribe 处理器） -->
+        <dependency>
+            <groupId>com.github.therapi</groupId>
+            <artifactId>therapi-runtime-javadoc</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>

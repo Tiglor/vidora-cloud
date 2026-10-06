@@ -1,54 +1,52 @@
 package org.tiglor.auth.service.impl;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.toolkit.StringUtils;
+import java.util.List;
+import lombok.RequiredArgsConstructor;
+import org.apache.dubbo.config.annotation.DubboReference;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.tiglor.api.system.RemoteClientApi;
+import org.tiglor.api.system.RemoteUserApi;
+import org.tiglor.api.system.dto.RemoteClientDTO;
+import org.tiglor.api.system.dto.RemoteLoginUserDTO;
+import org.tiglor.api.system.dto.RemoteRegisterDTO;
 import org.tiglor.auth.dto.UserLoginDTO;
 import org.tiglor.auth.dto.UserRegisterDTO;
-import org.tiglor.common.user.entity.Client;
-import org.tiglor.common.user.entity.Menu;
-import org.tiglor.common.user.entity.Role;
-import org.tiglor.common.user.entity.RoleMenu;
-import org.tiglor.common.user.entity.User;
-import org.tiglor.common.user.entity.UserRole;
-import org.tiglor.common.user.mapper.ClientMapper;
-import org.tiglor.common.user.mapper.MenuMapper;
-import org.tiglor.common.user.mapper.RoleMapper;
-import org.tiglor.common.user.mapper.RoleMenuMapper;
-import org.tiglor.common.user.mapper.UserMapper;
-import org.tiglor.common.user.mapper.UserRoleMapper;
 import org.tiglor.auth.service.AuthService;
 import org.tiglor.auth.vo.LoginVO;
 import org.tiglor.common.core.BizException;
 import org.tiglor.common.core.JwtUtil;
 import org.tiglor.common.core.ResultCode;
-import lombok.RequiredArgsConstructor;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-import java.util.List;
-
+/**
+ * 登录与注册。
+ * <p>
+ * 本服务不连库：用户、角色、权限、客户端全部经 Dubbo 向 system-service 取。
+ * 留在这一侧的只有两件认证语义的事——密码比对与「失败提示不许区分账号不存在和密码错」，
+ * 前者要 {@link PasswordEncoder}，后者是防手机号枚举的策略，都属于认证服务而不是用户库。
+ */
 @Service
 @RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
 
-    /** 注册时默认赋予的普通用户角色，对应 SQL 初始化脚本中的 sys_role.id */
-    private static final Long DEFAULT_ROLE_ID = 2L;
+    /**
+     * Dubbo 的引用注入走 BeanPostProcessor，只能打在非 final 字段上，
+     * 所以这两个不在 {@code @RequiredArgsConstructor} 生成的构造器里。
+     */
+    @DubboReference
+    private RemoteUserApi remoteUserApi;
 
-    private final UserMapper userMapper;
-    private final UserRoleMapper userRoleMapper;
-    private final RoleMapper roleMapper;
-    private final RoleMenuMapper roleMenuMapper;
-    private final MenuMapper menuMapper;
-    private final ClientMapper clientMapper;
+    @DubboReference
+    private RemoteClientApi remoteClientApi;
+
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
 
     @Override
     public LoginVO login(UserLoginDTO dto) {
-        User user = userMapper.selectOne(new LambdaQueryWrapper<User>().eq(User::getPhone, dto.getPhone()));
-        // 账号不存在与密码错误返回同一提示，避免手机号枚举
+        RemoteLoginUserDTO user = remoteUserApi.getLoginUser(dto.getPhone());
+        // 账号不存在与密码错误返回同一提示，避免手机号枚举。
+        // user 为 null 时短路，不会拿 null 哈希去调 matches
         if (user == null || !passwordEncoder.matches(dto.getPassword(), user.getPasswordHash())) {
             throw new BizException(ResultCode.UNAUTHORIZED, "手机号或密码错误");
         }
@@ -57,8 +55,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         // 校验客户端
-        Client client = clientMapper.selectOne(
-                new LambdaQueryWrapper<Client>().eq(Client::getClientId, dto.getClientId()));
+        RemoteClientDTO client = remoteClientApi.getByClientId(dto.getClientId());
         if (client == null || client.getStatus() == null || client.getStatus() != 1) {
             throw new BizException(ResultCode.VALIDATE_FAILED, "客户端未注册或已停用");
         }
@@ -66,8 +63,8 @@ public class AuthServiceImpl implements AuthService {
             throw new BizException(ResultCode.VALIDATE_FAILED, "该客户端不支持密码登录");
         }
 
-        List<String> roles = loadRoleCodes(user.getId());
-        List<String> permissions = loadPermissionCodes(user.getId());
+        List<String> roles = orEmpty(user.getRoles());
+        List<String> permissions = orEmpty(user.getPermissions());
         String token = jwtUtil.generateToken(
                 user.getId(), String.join(",", roles), String.join(",", permissions),
                 client.getClientId(), client.getClientKey(), client.getTimeout());
@@ -88,67 +85,25 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public Long register(UserRegisterDTO dto) {
-        User exist = userMapper.selectOne(new LambdaQueryWrapper<User>().eq(User::getPhone, dto.getPhone()));
-        if (exist != null) {
+        RemoteRegisterDTO register = new RemoteRegisterDTO();
+        register.setPhone(dto.getPhone());
+        register.setNickname(dto.getNickname());
+        // BCrypt 编码留在本服务：明文密码不该出现在任何一条服务间链路上，
+        // 哪怕是内网 RPC——对端的访问日志、线程转储、异常堆栈都会把它带出去
+        register.setPasswordHash(passwordEncoder.encode(dto.getPassword()));
+
+        // 事务在 provider 侧（建号 + 授默认角色两步同一个事务），这里不再标 @Transactional：
+        // 本地已经没有数据库，标了也只是开个空事务
+        Long userId = remoteUserApi.register(register);
+        if (userId == null) {
             throw new BizException(ResultCode.VALIDATE_FAILED, "手机号已注册");
         }
-        User user = new User();
-        user.setPhone(dto.getPhone());
-        user.setNickname(StringUtils.isNotBlank(dto.getNickname()) ? dto.getNickname() : dto.getPhone());
-        user.setPasswordHash(passwordEncoder.encode(dto.getPassword()));
-        user.setStatus(1);
-        user.setFollowCount(0);
-        user.setFollowerCount(0);
-        userMapper.insert(user);
-
-        // 新用户默认赋予普通用户角色（role_id=2）
-        UserRole userRole = new UserRole();
-        userRole.setUserId(user.getId());
-        userRole.setRoleId(DEFAULT_ROLE_ID);
-        userRole.setCreateTime(LocalDateTime.now());
-        userRoleMapper.insert(userRole);
-        return user.getId();
+        return userId;
     }
 
-    private List<String> loadRoleCodes(Long userId) {
-        List<Long> roleIds = listRoleIds(userId);
-        if (roleIds.isEmpty()) {
-            return List.of();
-        }
-        return roleMapper.selectBatchIds(roleIds).stream()
-                .map(Role::getRoleCode)
-                .filter(StringUtils::isNotBlank)
-                .distinct()
-                .toList();
-    }
-
-    private List<String> loadPermissionCodes(Long userId) {
-        List<Long> roleIds = listRoleIds(userId);
-        if (roleIds.isEmpty()) {
-            return List.of();
-        }
-        List<Long> menuIds = roleMenuMapper.selectList(new LambdaQueryWrapper<RoleMenu>()
-                        .in(RoleMenu::getRoleId, roleIds)).stream()
-                .map(RoleMenu::getMenuId)
-                .distinct()
-                .toList();
-        if (menuIds.isEmpty()) {
-            return List.of();
-        }
-        return menuMapper.selectBatchIds(menuIds).stream()
-                .map(Menu::getPermissionCode)
-                .filter(StringUtils::isNotBlank)
-                .distinct()
-                .toList();
-    }
-
-    private List<Long> listRoleIds(Long userId) {
-        return userRoleMapper.selectList(new LambdaQueryWrapper<UserRole>()
-                        .eq(UserRole::getUserId, userId)).stream()
-                .map(UserRole::getRoleId)
-                .distinct()
-                .toList();
+    /** 契约约定给空列表，但反序列化出来的东西不值得无条件相信，join 之前兜一次 */
+    private static List<String> orEmpty(List<String> value) {
+        return value == null ? List.of() : value;
     }
 }

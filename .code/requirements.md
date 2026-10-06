@@ -17,35 +17,35 @@ vidora 是视频播放平台，四个工程：
 
 本仓库拥有（后端说了算的部分）：
 
-- **数据与表结构**：7 个独立 schema，DDL 在 `SQL/01`–`09`，列注释就是字段语义的第一手出处。
+- **数据与表结构**：单库 `vidora_cloud`，全量 DDL 与种子就在 `SQL/vidora_cloud.sql` 一个文件里、按业务功能分 8 节，列注释就是字段语义的第一手出处。
 - **业务规则与统计口径**：计数怎么算、层级能不能成环、重名是否允许、状态机怎么流转 —— 全在 `service/impl`，前端只读结果。
 - **认证与授权**：JWT 签发（auth-service）、网关校验与身份透传（`GatewayAuthFilter` + `SecurityHeaders`）、接口级权限（各服务 `@PreAuthorize`）。
 - **审计与可观测性**：`sys_oper_log` / `sys_login_log`、traceId 链路、分级日志文件。
 - **对外契约本身**：路径、方法、参数名、返回形状、错误码与 HTTP 状态的对应关系。
 
-本仓库**不做**：页面渲染、交互反馈、本地会话存储、主题（后端只存 `theme_key` 字符串不解释含义，见 `common-user/entity/User.java` 的注释）、按钮可见性判断。
+本仓库**不做**：页面渲染、交互反馈、本地会话存储、主题（后端只存 `theme_key` 字符串不解释含义，见 `vidora-modules/vidora-system/.../system/entity/User.java` 的注释）、按钮可见性判断。
 
 ## 二、加一个能力该落在哪个服务
 
 先看数据在哪张表、谁写这张表，再定服务。**不要为了「前端想在一个接口里拿到全部」而把别的域的写口搬过来**；跨域聚合的正确做法是提供批量读接口（已有 `POST /api/videos/batch`，`VideoController.batch`，id 上限夹 50），让调用方自己拼。
 
-| 能力属于 | 服务（端口） | 库 | 判据 / 现有出口 |
+| 能力属于 | 服务（端口） | 表在 `vidora_cloud` 库的位置 | 判据 / 现有出口 |
 | --- | --- | --- | --- |
-| 注册、登录、token 签发、用户自助偏好（改主题） | auth-service (8101) | `user_service` | `/auth/**`、`/profile/**` |
-| RBAC：用户、角色、菜单、客户端配置；审计日志落库与查询 | system-service (8108) | `user_service`（与 auth 共用） | `/users` `/roles` `/menus` `/clients` `/oper-logs` `/login-logs` + `/internal/logs` |
-| 视频本体：元信息、上传/分片、存储、转码任务、播放与下载地址 | video-service (8102) | `video_service` | `/videos/**` |
-| 字典与运营位：分类、标签、推荐流配置、热搜榜、内容安全审核台 | content-service (8103) | `content_service` | `/categories` `/tags` `/feed-configs` `/hot-searches` `/security-audits` |
-| 互动流水：评论、点赞收藏分享、弹幕、播放计数 | interact-service (8104) | `interact_service` | `/comments` `/actions` `/danmaku` `/play-counts` |
-| 站内消息、私信会话、推送设备绑定 | message-service (8105) | `message_service` | `/messages` `/conversations` `/push-devices` |
-| 搜索历史、词频统计、建议词字典 | search-service (8106) | `search_service` | `/search/**`（三个控制器都挂在 `/search` 下） |
-| 推荐候选、算法配置、用户画像特征 | recommend-service (8107) | `recommend_service` | `/recommends` `/algo-configs` `/user-features` |
-| 路由、鉴权、身份透传、traceId 起点 | gateway-service (8080) | — | 不写业务代码，只碰 filter 与 yml |
+| 注册、登录、token 签发、用户自助偏好（改主题） | auth-service (8101) | 不连库，经 Dubbo 向 system-service 取 | `/auth/**`、`/profile/**` |
+| RBAC：用户、角色、菜单、客户端配置；审计日志落库与查询 | system-service (8108) | `sys_*` / `user_*`（第 1 节）+ 第 2 节两张 `sys_*_log` | `/users` `/roles` `/menus` `/clients` `/oper-logs` `/login-logs` + `/internal/logs` |
+| 视频本体：元信息、上传/分片、存储、转码任务、播放与下载地址 | video-service (8102) | `video_*`（第 3 节） | `/videos/**` |
+| 字典与运营位：分类、标签、推荐流配置、热搜榜、内容安全审核台 | content-service (8103) | `content_*`（第 4 节） | `/categories` `/tags` `/feed-configs` `/hot-searches` `/security-audits` |
+| 互动流水：评论、点赞收藏分享、弹幕、播放计数 | interact-service (8104) | `interact_*`（第 5 节） | `/comments` `/actions` `/danmaku` `/play-counts` |
+| 站内消息、私信会话、推送设备绑定 | message-service (8105) | `message_*`（第 6 节） | `/messages` `/conversations` `/push-devices` |
+| 搜索历史、词频统计、建议词字典 | search-service (8106) | `search_*`（第 7 节） | `/search/**`（三个控制器都挂在 `/search` 下） |
+| 推荐候选、算法配置、用户画像特征 | recommend-service (8107) | `recommend_*`（第 8 节） | `/recommends` `/algo-configs` `/user-features` |
+| 路由、鉴权、身份透传、traceId 起点 | gateway-service (8080) | 无表 | 不写业务代码，只碰 filter 与 yml |
 
 归属拿不准时的三条判据：
 
 1. **写口的归属优先于读口**。热搜榜由 content 写、search 只贡献词频，所以「运营调热搜顺序」是 content 的事。
-2. **需要联表的就是同库的事**。审计要显示昵称，所以 `sys_oper_log` 和 `sys_user` 必须在同一个 `user_service` 库（`SQL/09` 头部注释详细解释了为什么不冗余昵称）。
-3. **新库新表 = 新服务或明确归入既有服务**，绝不把 A 服务的表塞进 B 服务的库里。跨库没有外键，引用完整性只能靠服务层守（`Category` 类注释就写了这条限制）。
+2. **合库之后「能不能 join」不再是判据**，判据是「谁写这张表」。审计要显示昵称，`sys_oper_log` 和 `sys_user` 现在同在一个库里、join 技术上可行，但依然由查询侧按 id 批量补昵称、不落冗余列（`SQL/vidora_cloud.sql`「二、审计日志」节头注释解释了为什么不冗余）。同库不等于可以直读别人的表。
+3. **新表进它所属业务那一节，绝不塞进别人的节**。单库之后仍然不建外键：跨服务外键会把服务边界变成部署耦合，引用完整性照旧靠 service 层守（`Category` 类注释就写了这条限制）。
 
 两个不属于任何单个服务的落点：
 
@@ -53,7 +53,7 @@ vidora 是视频播放平台，四个工程：
 | --- | --- | --- |
 | A 同步调 B 的接口与 DTO | 契约进 `vidora-api/vidora-api-B`（**B 拥有**），A 只在 `client/` 写 Feign 实现 | 对端与本仓库同一次发布 → 内部契约 |
 | 对接平台外部系统（云转码、内容安全、短信、支付、CDN） | `vidora-integration`，OpenFeign 留在这条线上 | 对端在平台之外 → 必须在本层把外部模型转成内部模型，别让外部 DTO 漏进业务服务 |
-| 不要求立即返回的跨服务动作 | RocketMQ 事件，不要新开一条同步调用 | 见 `docs/ARCHITECTURE.md` 6.2.1 / 6.4 |
+| 不要求立即返回的跨服务动作 | RocketMQ 事件，不要新开一条同步调用 | 见 `ARCHITECTURE.md` 6.2.1 / 6.4 |
 
 「响应慢，要不要换 Dubbo」不是一个需求，是一个结论：先说清**哪一次请求跨了几次服务**，再按 6.2.1 的触发条件判断。当前全仓只有 1 条业务同步调用（`VideoController.owner`），首屏 / 详情 / 评论 / 搜索都在自己库里出，Dubbo 没有可优化的链路——真要做的是服务端聚合（BFF），那是跨端契约变更，得先拍板。
 
@@ -86,7 +86,7 @@ vidora 是视频播放平台，四个工程：
 - 契约以后端哪个方法为准：XxxController.yyy 的签名不许变（三端在调）。
 - 鉴权边界：读接口只要登录；写接口需 {域}:{资源}:{动作} 权限码，
   且路径必须在 GatewayAuthFilter.ADMIN_PATH_PREFIXES 内（若是管理端专用）。
-- 数据：涉及 SQL/NN_*.sql 的新增迁移，由用户手工执行，本次交付不含执行结果。
+- 数据：涉及 SQL/vidora_cloud.sql 的结构变更，由用户手工执行，本次交付不含执行结果。
 - 兼容性：分页参数沿用 current/size；返回 Page<T>；不引入 PageResult。
 - 不能碰的既有约定：ApiResult 外壳、GlobalExceptionHandler 的状态码映射、logback-base.xml。
 
@@ -122,18 +122,17 @@ vidora 是视频播放平台，四个工程：
 | URL 前缀与转发关系 | `vidora-gateway/src/main/resources/application.yml` 的 `routes`（Path 断言 + `StripPrefix=1`） |
 | 方法、路径、参数名、返回类型 | 各服务 `{service}/controller/*Controller.java` |
 | 请求体字段与校验文案 | `{service}/dto/XxxRequest.java`（jakarta validation 注解 + message） |
-| 响应字段与可空性 | entity（`{service}/entity/`、`vidora-common/common-user/entity/`）+ `vo/` |
+| 响应字段与可空性 | entity（`{service}/entity/`；RBAC 那几张 `sys_*` 在 `vidora-modules/vidora-system/.../system/entity/`）+ `vo/` |
 | 外壳与错误码 | `common-core/.../ApiResult.java`、`ResultCode.java`、`GlobalExceptionHandler.java` |
-| 谁能调 | `GatewayAuthFilter`（匿名白名单 + `ADMIN_PATH_PREFIXES`）+ `@PreAuthorize` + `SQL/01` 里的 `sys_menu.permission_code` 种子 |
-| 字段取值语义 | `SQL/NN_*.sql` 的列注释（枚举档位以此为准） |
+| 谁能调 | `GatewayAuthFilter`（匿名白名单 + `ADMIN_PATH_PREFIXES`）+ `@PreAuthorize` + `SQL/vidora_cloud.sql` 第 1 节的 `sys_menu.permission_code` 种子 |
+| 字段取值语义 | `SQL/vidora_cloud.sql` 的列注释（枚举档位以此为准） |
 
 包根固定 `src/main/java/org/tiglor/{service}/`。
 
 ### 已知不可依赖的部分
 
 - `common-core/.../PageResult.java`：**零引用**，实际分页出口是 MP 的 `Page<T>`。给前端讲契约时报 `Page` 的形状。
-- `deploy/docker-compose.yml` 顶部注释写「SQL/ 下 7 个脚本」，实际目录里已有 `01`–`09` 九个文件。以文件为准。
-- `docs/ARCHITECTURE.md` 技术栈表写 MyBatis-Plus 3.5.14，根 `pom.xml` 是 3.5.17。以 pom 为准。
+- `ARCHITECTURE.md` 技术栈表写 MyBatis-Plus 3.5.14，根 `pom.xml` 是 3.5.17。以 pom 为准。
 - 匿名可达清单会随需求变动，**用到时现场读 `GatewayAuthFilter.java`**，不要引用本文档或历史对话里的列表。注意判定顺序：匿名浏览白名单最先判（命中即放行、不解析 token），`ADMIN_PATH_PREFIXES` 的 clientKey 校验在 token 校验之后 —— 同一个路径可能有相反命运（`/api/search/suggests` 同时出现在两张名单上：游客放行、带普通用户 token 反而 403）。
 
 ---
@@ -146,7 +145,7 @@ vidora 是视频播放平台，四个工程：
 2. **契约经现场核对**：涉及的每个字段都能指出它在哪个 Controller / DTO / entity 的哪一行。凭印象的一律不算。
 3. **四处同步检查过**（若接口是管理端专用）：网关路由、`ADMIN_PATH_PREFIXES`、`sys_menu` 权限种子、`@PreAuthorize`。少一处都是事故，逐条对照 `.code/skills/add-admin-only-endpoint.md`。
 4. **异常语义正确**：业务失败抛 `BizException` + 合适的 `ResultCode`，HTTP 状态码不等于 200；不存在的情况返回 404 而不是 null。
-5. **数据变更有迁移脚本**：新建 `SQL/NN_*.sql`，幂等写法，且**明确告知用户需手工执行**（AI 不代跑）。
+5. **数据变更落在 `SQL/vidora_cloud.sql` 所属业务那一节**：改那条 `CREATE TABLE` 的目标态（不新建迁移文件、不在里面追加 `ALTER`、建库建表不带 `IF NOT EXISTS`），种子数据用 `INSERT IGNORE` 且写死 id，并给出存量库的等价 `ALTER` 或重建步骤（`DROP DATABASE vidora_cloud;` 后重跑）；**明确告知用户需手工执行**（AI 默认不代跑）。
 6. **旁路设施没被绕过**：需要的地方加了 `@OperLog`（并按 `BusinessType` 选对类型）；不该加的地方（高频用户流水、机器回报口）确认没加；缓存写入侧配了 `@CacheEvict`。
 7. **编译通过**：第三节命令形式的离线编译，退出码 0；改了 common-* 用 `-am` 或全仓编。
 8. **运行时行为有证据或如实标缺**：起服务 + curl 走过正常/未登录/越权/幂等四条路径的，贴结果；没走的，写「未验证 + 阻塞原因」。

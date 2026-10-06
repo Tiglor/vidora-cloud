@@ -24,7 +24,7 @@ public interface MultipartUploadService {
      * 初始化上传会话，一次调用对应一次上传尝试。
      * 命中秒传时 {@code instant=true}，前端可直接调 {@link #complete}；
      * 命中断点续传时返回同一个 uploadId 和服务端已确认收到的分片下标；
-     * 其余情况（包括同一文件再投一次）都会得到**全新的 uploadId**。
+     * 其余情况（包括同一文件再投一次）都会得到「全新的 uploadId」。
      */
     MultipartInitResult init(MultipartInitRequest request, Long userId);
 

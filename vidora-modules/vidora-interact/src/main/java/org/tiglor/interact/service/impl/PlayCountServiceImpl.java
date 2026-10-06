@@ -79,7 +79,7 @@ public class PlayCountServiceImpl implements PlayCountService {
     /**
      * SETNX + TTL 占一个去重位，返回是否是窗口内的首次播放。
      * <p>
-     * Redis 不可用时选择**放行**：播放数多算一次的代价，远小于「Redis 挂了导致播放上报接口报错」。
+     * Redis 不可用时选择「放行」：播放数多算一次的代价，远小于「Redis 挂了导致播放上报接口报错」。
      * 缓存层的降级见 RedisCacheConfig#errorHandler，这里是同一套取舍。
      * </p>
      */

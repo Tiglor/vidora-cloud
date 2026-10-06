@@ -23,8 +23,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  * 三件事决定了它的形状：
  * <ol>
  *   <li>不能阻塞业务 —— 所以丢进独立线程池，请求线程只是 submit；</li>
- *   <li>不能丢数据 —— 队列满时用 CallerRunsPolicy 让业务线程自己发（宁慢勿丢），
- *       上报失败再退回 {@link FileLogSink} 写 audit.log；</li>
+ *   <li>不能丢数据 —— 队列满时用 CallerRunsPolicy 让业务线程自己发（宁慢勿丢）。
+ *       {@link FileLogSink} 那份是 submit 时先无条件写的，不是失败后才写：
+ *       上报可能整个失败（服务没起、Nacos 解析不到、库表没建），文件是补录的唯一凭据；</li>
  *   <li>不能污染业务语义 —— 上报路径走 {@code /internal/**}，网关不路由这类前缀，
  *       只在容器网络内可达，因此不需要用户身份；带一个可选的共享口令兜住越权。</li>
  * </ol>
@@ -103,7 +104,8 @@ public class RemoteLogSink implements LogSink {
         factory.setReadTimeout(props.getReadTimeoutMs());
         RestTemplate template = new RestTemplate(factory);
         if (loadBalancerClient != null) {
-            // 让 http://system-service 这种服务名地址能被解析；解析不了就直接失败并退回文件
+            // 让 http://system-service 这种服务名地址能被解析；解析不了就在 post 里失败，
+            // 记录仍留在 submit 阶段写下的 audit.log 中
             template.getInterceptors().add(new LoadBalancerInterceptor(loadBalancerClient));
         }
         return template;

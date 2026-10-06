@@ -10,8 +10,19 @@
   目录约定（LOG_HOME 默认 logs，用环境变量 VIDORA_LOG_PATH 覆盖）：
       logs/<spring.application.name>/app.log     全量（INFO 及以上），排查主现场
       logs/<spring.application.name>/error.log   只收 ERROR，告警与快速定位用
-      logs/<spring.application.name>/audit.log   @OperLog 审计流水，一行一条 JSON
+      logs/<spring.application.name>/audit.log   审计的本地副本，一行一条 JSON（库表才是正主）
   三类都按「天 + 大小」滚动并 gz 压缩，保留期与总量见下面的 springProperty。
+
+  audit.log 不是审计的存储位置。审计的正主是库表：@OperLog → LogSink → system-service
+  的 sys_oper_log / sys_login_log，管理端「日志管理」页面查的是那两张表。
+  RemoteLogSink 是「先落文件、再异步上报」—— 上报线程池可能拒绝任务、system-service
+  可能不通，文件这一份才是确定性的，所以每条审计记录这里都会有一行，不是只在失败时才有。
+  它的用途是补录：文件里有、库里没有，说明上报或落库那条路断了（表没建、服务没起、
+  Nacos 没解析到、ingest 口令不符），照这个顺序查，别翻 logback。
+
+  LOG_HOME 相对进程 cwd：本地 mvn -pl ... spring-boot:run 的 cwd 由根 pom 里
+  spring-boot-maven-plugin 的 workingDirectory 归一到仓库根，所以默认落点就是
+  <repo>/logs/<服务名>/；docker 里由 VIDORA_LOG_PATH=/app/logs 覆盖，形态一致。
 -->
 <included>
     <springProperty scope="context" name="APP_NAME" source="spring.application.name" defaultValue="vidora"/>
@@ -72,7 +83,8 @@
         <file>${LOG_HOME}/${APP_NAME}/audit.log</file>
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
             <fileNamePattern>${LOG_HOME}/${APP_NAME}/audit.%d{yyyy-MM-dd}.log.gz</fileNamePattern>
-            <!-- 审计是合规要查的东西，保留期单独放宽 -->
+            <!-- 留 365 天：这个文件是审计的补录凭据，落库那条路断掉多久都得能回填，
+                 所以保留期比 app/error 都长 -->
             <maxHistory>365</maxHistory>
         </rollingPolicy>
         <encoder>

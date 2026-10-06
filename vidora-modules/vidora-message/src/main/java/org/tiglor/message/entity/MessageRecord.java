@@ -28,6 +28,7 @@ public class MessageRecord implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
+    /** 消息主键，数据库自增；收件箱与话题线都以它倒序排列，等价于「越新越大」的稳定游标 */
     @TableId(type = IdType.AUTO)
     private Long id;
 
@@ -37,8 +38,10 @@ public class MessageRecord implements Serializable {
     /** 发送者，0 表示系统 */
     private Long senderId;
 
+    /** 这条消息投给谁；私信同样只存单个收信人，一段对话靠两行互为收发拼出来 */
     private Long receiverId;
 
+    /** 正文，入库前已去掉首尾空白；会话列表上的摘要由查询侧再截断，不改这里的原文 */
     private String content;
 
     /** 扩展字段，DDL 上是 JSON 列，这里按字符串原样存取（跳转链接、被点赞的对象 id 之类） */
@@ -47,11 +50,13 @@ public class MessageRecord implements Serializable {
     /** 是否已读：0-未读 1-已读 */
     private Integer isRead;
 
+    /** 第一次被标记已读的时间；同一批「全部已读」重复执行不会再刷新它 */
     private LocalDateTime readTime;
 
     /** 状态：0-已删除 1-正常 */
     private Integer status;
 
+    /** 消息落库时间，插入时自动填充；私信发出后拿它去推进会话的 last_msg_time */
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 }

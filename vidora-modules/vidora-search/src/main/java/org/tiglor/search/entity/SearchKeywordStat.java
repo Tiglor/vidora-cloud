@@ -18,7 +18,7 @@ import java.time.LocalDateTime;
  * 是两个不同的热度，合成一列就再也拆不回来了。要算周榜月榜在查询侧按 {@code stat_date} 聚合。
  * </p>
  * <p>
- * {@code resultCount} 是**平均结果数**不是总数（DDL 注释就是这么写的），
+ * {@code resultCount} 是「平均结果数」不是总数（DDL 注释就是这么写的），
  * 由 upsert 语句用增量平均公式维护，见 {@code SearchKeywordStatMapper.upsertStat}。
  * 它的用途是找出「搜的人多但搜不到东西」的词——那批词是内容缺口，该去补片源，
  * 而不是当成热词推给用户。
@@ -34,9 +34,11 @@ public class SearchKeywordStat implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
+    /** 自增主键 */
     @TableId(type = IdType.AUTO)
     private Long id;
 
+    /** 关键词，与搜索历史一样做过空白归一，大小写保留第一次入库时的那种拼法（唯一键本身不区分） */
     private String keyword;
 
     /** 当天这个词被搜了多少次 */
@@ -45,8 +47,10 @@ public class SearchKeywordStat implements Serializable {
     /** 当天这个词的平均结果数，整数除法会截断小数 */
     private Long resultCount;
 
+    /** 这一行属于哪一天（只到日，没有时刻）。与 keyword 一起构成唯一键，回报搜索时按当天落行 */
     private LocalDate statDate;
 
+    /** 这一天的统计行首次建立的时间；当天后续都只更新计数，表上没有 update_time */
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 }

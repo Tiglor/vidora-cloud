@@ -9,8 +9,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.tiglor.common.log.entity.OperLogEntity;
 import org.tiglor.common.log.mapper.OperLogMapper;
-import org.tiglor.common.user.entity.User;
-import org.tiglor.common.user.mapper.UserMapper;
+import org.tiglor.system.entity.User;
+import org.tiglor.system.mapper.UserMapper;
 import org.tiglor.system.service.OperLogService;
 import org.tiglor.system.vo.OperLogVO;
 

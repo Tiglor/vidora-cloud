@@ -10,7 +10,7 @@ import java.util.List;
  * 用户行为特征的存取。
  * <p>
  * 特征由外部任务算好后写进来，召回模型读出去。本服务不做任何特征工程——
- * 没有衰减、没有归一化，写入是**覆盖**语义（见 {@code UserFeatureMapper.batchUpsert}）。
+ * 没有衰减、没有归一化，写入是「覆盖」语义（见 {@code UserFeatureMapper.batchUpsert}）。
  * </p>
  */
 public interface UserFeatureService extends IService<UserFeature> {

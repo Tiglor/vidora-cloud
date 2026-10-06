@@ -16,9 +16,11 @@ import java.math.BigDecimal;
 @Data
 public class DanmakuSendRequest {
 
+    /** 发到哪条视频的弹幕时间线上；服务端不校验这条视频是否存在或是否已发布 */
     @NotNull(message = "videoId 不能为空")
     private Long videoId;
 
+    /** 弹幕文本，落库前 trim——只发空格等于发空内容，会被非空校验挡下 */
     @NotBlank(message = "弹幕内容不能为空")
     @Size(max = 500, message = "弹幕内容不能超过 500 字")
     private String content;
@@ -29,9 +31,11 @@ public class DanmakuSendRequest {
     @DecimalMax(value = "86400", message = "appearTime 超出合理范围")
     private BigDecimal appearTime;
 
+    /** 可省略，服务端补白色；入库前统一转成大写十六进制，所以传 #ffffff 也会存成 #FFFFFF */
     @Pattern(regexp = "^#[0-9A-Fa-f]{6}$", message = "color 必须是 #RRGGBB 形式")
     private String color;
 
+    /** 可省略，服务端补默认字号 25 */
     @Min(value = 12, message = "fontSize 最小 12")
     @Max(value = 48, message = "fontSize 最大 48")
     private Integer fontSize;

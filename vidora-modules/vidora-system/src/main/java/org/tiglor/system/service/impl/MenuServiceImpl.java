@@ -9,12 +9,12 @@ import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.tiglor.common.redis.CacheNames;
-import org.tiglor.common.user.entity.Menu;
-import org.tiglor.common.user.entity.RoleMenu;
-import org.tiglor.common.user.entity.UserRole;
-import org.tiglor.common.user.mapper.MenuMapper;
-import org.tiglor.common.user.mapper.RoleMenuMapper;
-import org.tiglor.common.user.mapper.UserRoleMapper;
+import org.tiglor.system.entity.Menu;
+import org.tiglor.system.entity.RoleMenu;
+import org.tiglor.system.entity.UserRole;
+import org.tiglor.system.mapper.MenuMapper;
+import org.tiglor.system.mapper.RoleMenuMapper;
+import org.tiglor.system.mapper.UserRoleMapper;
 import org.tiglor.system.service.MenuService;
 import org.tiglor.system.vo.MenuVO;
 

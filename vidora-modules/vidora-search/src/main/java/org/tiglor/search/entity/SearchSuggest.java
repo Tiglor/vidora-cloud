@@ -39,18 +39,32 @@ public class SearchSuggest implements Serializable {
     /** 禁用：不再出现在联想框里，但词还留着，随时能改回来 */
     public static final int STATUS_DISABLED = 0;
 
+    /** 自增主键，管理接口按它定位某一条建议词 */
     @TableId(type = IdType.AUTO)
     private Long id;
 
+    /**
+     * 建议词本身，入库前只去首尾空白。全表唯一（大小写不敏感），
+     * 所以新增或改名撞上已有的词会直接报错而不是合并计数。
+     */
     private String keyword;
 
+    /**
+     * 排序权重，降序使用；运营不填就是 0。
+     * <p>自动挖掘进来的词一律是 0，因此能被前缀匹配到，但排在所有人工词之后。</p>
+     */
     private Integer weight;
 
     /** 来源，取值见 {@link org.tiglor.search.enums.SuggestSource} */
     private Integer source;
 
+    /**
+     * 状态：0-禁用 1-启用。新建即启用，且只有单独的状态接口会改它——
+     * 编辑词、改权重都不会顺手把一个已禁用的词放回去。
+     */
     private Integer status;
 
+    /** 收录时间，只写一次；改过权重也看不出是什么时候改的，因为表上没有 update_time */
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 }

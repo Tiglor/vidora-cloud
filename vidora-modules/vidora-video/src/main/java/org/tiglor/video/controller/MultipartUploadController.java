@@ -40,7 +40,9 @@ public class MultipartUploadController {
     private final TranscodeProperties transcodeProperties;
 
     /**
-     * 初始化上传会话。{@code instant=true} 表示秒传命中，无需再传分片，直接调 complete。
+     * 初始化上传会话
+     *
+     * <p>{@code instant=true} 表示秒传命中，无需再传分片，直接调 complete。</p>
      */
     @PostMapping("/init")
     @PreAuthorize("hasAuthority('video:upload')")
@@ -48,7 +50,11 @@ public class MultipartUploadController {
         return ApiResult.ok(multipartUploadService.init(request, UserContext.getUserId()));
     }
 
-    /** 上传单个分片。同一下标可重复上传，服务端覆盖写并幂等计数 */
+    /**
+     * 上传单个分片
+     *
+     * <p>同一下标可重复上传，服务端覆盖写并幂等计数。</p>
+     */
     @PostMapping(value = "/chunk", consumes = "multipart/form-data")
     @PreAuthorize("hasAuthority('video:upload')")
     public ApiResult<Void> chunk(@RequestParam String uploadId,
@@ -58,13 +64,21 @@ public class MultipartUploadController {
         return ApiResult.ok();
     }
 
-    /** 查询进度：返回服务端实测已收到的分片下标，刷新页面或换设备后靠它接着传 */
+    /**
+     * 查询分片上传进度
+     *
+     * <p>返回服务端实测已收到的分片下标，刷新页面或换设备后靠它接着传。</p>
+     */
     @GetMapping("/progress")
     public ApiResult<MultipartProgress> progress(@RequestParam String uploadId) {
         return ApiResult.ok(multipartUploadService.progress(uploadId, UserContext.getUserId()));
     }
 
-    /** 合并分片并生成视频记录。若开启转码则同时提交转码任务 */
+    /**
+     * 合并分片完成上传
+     *
+     * <p>合并分片并生成视频记录。若开启转码则同时提交转码任务。</p>
+     */
     @PostMapping("/complete")
     @PreAuthorize("hasAuthority('video:upload')")
     public ApiResult<VideoInfo> complete(@Valid @RequestBody MultipartCompleteRequest request) {

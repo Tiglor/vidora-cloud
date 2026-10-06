@@ -72,7 +72,7 @@ public class InteractActionServiceImpl extends ServiceImpl<InteractActionMapper,
     /**
      * 同步各处的冗余计数列。
      * <p>
-     * 只在状态**真的翻转**时调用：重复的「点赞」请求 changed 为 false，
+     * 只在状态「真的翻转」时调用：重复的「点赞」请求 changed 为 false，
      * 若也来加一次，连点几下就能把 like_count 抬到比真实点赞数高，而且再也回不去。
      * </p>
      * <p>
@@ -137,7 +137,7 @@ public class InteractActionServiceImpl extends ServiceImpl<InteractActionMapper,
     /**
      * 插入一条新的动作记录，返回是否真的插进去了。
      * <p>
-     * 不校验 target 是否存在：视频在 video_service 库里，跨服务校验会给最热的写路径加一次远程调用。
+     * 不校验 target 是否存在：video_info 归 video-service 写，跨服务校验会给最热的写路径加一次远程调用。
      * 编造的 targetId 只会留下一行没人读的死数据——计数总是和对象一起被查出来的。
      * </p>
      */

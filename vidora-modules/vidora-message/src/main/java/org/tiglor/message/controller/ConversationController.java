@@ -27,14 +27,22 @@ public class ConversationController {
 
     private final ConversationService conversationService;
 
-    /** 我的会话列表，按最后一条消息时间倒序，每行带摘要和未读数 */
+    /**
+     * 查询我的会话列表
+     *
+     * <p>按最后一条消息时间倒序，每行带摘要和未读数。</p>
+     */
     @GetMapping
     public ApiResult<Page<ConversationView>> list(@RequestParam(defaultValue = "1") long current,
                                                   @RequestParam(defaultValue = "20") long size) {
         return ApiResult.ok(conversationService.list(UserContext.getUserId(), current, size));
     }
 
-    /** 把与某人的私信全部标记已读，返回被标记的条数 */
+    /**
+     * 全部标记已读
+     *
+     * <p>把与某人的私信全部标记已读，返回被标记的条数。</p>
+     */
     @PutMapping("/{peerId}/read")
     public ApiResult<Integer> markRead(@PathVariable Long peerId) {
         return ApiResult.ok(conversationService.markRead(UserContext.getUserId(), peerId));

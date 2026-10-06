@@ -24,17 +24,21 @@ import java.math.BigDecimal;
 @Data
 public class RecommendItemRequest {
 
+    /** 给谁推荐这屏候选，必须是已落库的用户 id，但本服务不校验它存在——填错只会写进一行永远取不到的候选 */
     @NotNull(message = "userId 不能为空")
     @Positive(message = "userId 非法")
     private Long userId;
 
+    /** 候选视频 id，同样不做存在性与上下架状态校验 */
     @NotNull(message = "videoId 不能为空")
     @Positive(message = "videoId 非法")
     private Long videoId;
 
+    /** 所属场景，home / follow / topic；大小写不敏感，服务端归一后才入库，非法取值整批报 400 */
     @NotBlank(message = "scene 不能为空")
     private String scene;
 
+    /** 产出这条候选的算法，cf / deep / heatmap；归一规则同 {@code scene}，命中唯一键时这一列会被新值刷新 */
     @NotBlank(message = "algoType 不能为空")
     private String algoType;
 

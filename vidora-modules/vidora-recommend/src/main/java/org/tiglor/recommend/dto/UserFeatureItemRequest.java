@@ -19,9 +19,11 @@ import java.math.BigDecimal;
 @Data
 public class UserFeatureItemRequest {
 
+    /** 特征维度，tag / category / author；大小写不敏感，服务端归一成规范小写值再入库，非法取值整批报 400 */
     @NotBlank(message = "featureType 不能为空")
     private String featureType;
 
+    /** 特征值，含义由 {@code featureType} 决定（标签名 / 分类 id / 作者用户 id）；入库前去掉两侧空白，它和类型一起构成唯一键所以不会自动清理历史写法 */
     @NotBlank(message = "featureValue 不能为空")
     @Size(max = 100, message = "featureValue 不能超过 100 字")
     private String featureValue;

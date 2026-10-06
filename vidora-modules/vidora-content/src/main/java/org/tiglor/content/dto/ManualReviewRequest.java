@@ -18,6 +18,7 @@ public class ManualReviewRequest {
     @NotNull(message = "manualResult 不能为空")
     private Integer manualResult;
 
+    /** 改写后的风险标签，不传就保留机审给的那个；纯空白等同没传 */
     @Size(max = 100, message = "riskLabel 不能超过 100 字")
     private String riskLabel;
 }

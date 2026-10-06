@@ -17,13 +17,16 @@ import java.time.LocalDate;
 @Data
 public class HotSearchRequest {
 
+    /** 上榜词，必填（纯空白按没填处理）；与 {@code rankDate} 一起决定这次是新增还是覆盖已有那一行 */
     @NotBlank(message = "keyword 不能为空")
     @Size(max = 100, message = "keyword 不能超过 100 字")
     private String keyword;
 
+    /** 热度分，重排名次时的主排序键；这里是整体覆盖而不是累加，不传等于把它改成 0 */
     @PositiveOrZero(message = "heatScore 不能为负")
     private Integer heatScore;
 
+    /** 搜索次数，热度相同时的重排次排序键；同样是覆盖不是累加，本模块不统计真实搜索量 */
     @PositiveOrZero(message = "searchCount 不能为负")
     private Long searchCount;
 

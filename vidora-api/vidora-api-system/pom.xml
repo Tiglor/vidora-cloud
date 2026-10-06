@@ -15,8 +15,11 @@
     <packaging>jar</packaging>
 
     <description>
-        system-service（user_service 库）对外发布的调用契约。
-        当前消费者：video-service 经 OpenFeign 取投稿用户的昵称与头像。
+        system-service（单库 vidora_cloud 的用户与权限节）对外发布的调用契约。
+        消费者两条：video-service 经 OpenFeign 用 UserApi 取投稿用户的昵称与头像；
+        auth-service 经 Dubbo 用 RemoteUserApi / RemoteClientApi 完成登录、注册与主题设置。
+        本模块不引 dubbo 依赖——@DubboService / @DubboReference 只出现在 provider 与 consumer 侧，
+        契约因此对传输框架保持中立。
     </description>
 
     <dependencies>

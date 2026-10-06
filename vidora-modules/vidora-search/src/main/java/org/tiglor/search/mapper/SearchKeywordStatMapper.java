@@ -18,7 +18,7 @@ public interface SearchKeywordStatMapper extends BaseMapper<SearchKeywordStat> {
      * <p>
      * <b>两个赋值的顺序不能换。</b>MySQL 的 {@code UPDATE} 子句从左往右求值，
      * 后面的赋值能看到前面已经改过的列。这里 {@code result_count} 必须先算，
-     * 用的还是**旧的** {@code search_count}；等它算完 {@code search_count} 才加一。
+     * 用的还是「旧的」 {@code search_count}；等它算完 {@code search_count} 才加一。
      * 写成先加一再算平均，分母就多加了一次，均值会越来越偏小。
      * </p>
      * <p>
@@ -43,7 +43,7 @@ public interface SearchKeywordStatMapper extends BaseMapper<SearchKeywordStat> {
      * <p>
      * 用 {@code LEFT JOIN ... IS NULL} 而不是先查两张表再在 Java 里做差集：
      * 差集要在应用侧 holding 住一整天的统计行，而这里是纯 SQL 一步到位。
-     * 两张表都在 {@code search_service} 库里、都是 {@code utf8mb4_unicode_ci}，
+     * 两张表都在单库 {@code vidora_cloud} 里、都是 {@code utf8mb4_unicode_ci}，
      * 连接比较和 {@code uk_keyword} 的唯一性判定用的是同一套大小写不敏感规则。
      * </p>
      */

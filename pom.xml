@@ -28,12 +28,26 @@
         <!-- Nacos client 3.2.4（SCA 2025.1.0.0 默认捆绑 3.1.1，此处显式覆盖） -->
         <nacos.client.version>3.2.4</nacos.client.version>
 
+        <!-- RPC：服务间同步调用，当前唯一链路是 auth-service → system-service 取用户与客户端。
+             不用 dubbo-bom 的 import 方式管版本：本地仓库里缓存的 dubbo-bom 只有 3.1.2，
+             import 它会把 dubbo 主 jar 拉成 3.1.2 而 starter 是 3.3.6，两边错配。所以逐构件显式钉。
+             starter 的自动配置按 Spring Boot 2.7.18 编译，但在 Boot 4.0.7 / JDK 25 上实测能启动并导出服务
+             （不像 rocketmq-spring-boot-starter 那样直接 NoClassDefFoundError，见 6.4）。 -->
+        <dubbo.version>3.3.6</dubbo.version>
+
         <!-- ORM：Boot4 需要 mybatis-spring 4.x（Spring Framework 7） -->
         <mybatis-plus.version>3.5.17</mybatis-plus.version>
         <mybatis-spring.version>4.0.0</mybatis-spring.version>
 
         <!-- 接口文档：springdoc 3.x 对应 Boot 4（2.x 是 Boot 3 线） -->
         <springdoc.version>3.1.0</springdoc.version>
+        <!-- Javadoc → OpenAPI 桥（RuoYi-Cloud-Plus 的路子：接口说明只写 Javadoc，不贴 @Operation/@Tag）。
+             scribe 是编译期注解处理器，把注释烘进 target/classes/<包路径>/<类名>__Javadoc.json；
+             runtime 是运行期读取库——springdoc 的 SpringDocJavadocConfiguration 带
+             @ConditionalOnClass(CommentFormatter)，runtime 一上 classpath 就自动注册 SpringDocJavadocProvider，
+             于是方法注释进 summary/description、类注释进 tag 描述、@param 进参数描述、字段注释进 schema 属性描述。
+             0.15.0 是上游最新发布版。少 scribe：编译不报错，但文档静默没有描述；少 runtime：springdoc 压根不启用 provider。 -->
+        <therapi.version>0.15.0</therapi.version>
 
         <!-- 对象存储（MinIO / S3 兼容），用于视频文件的上传与存储 -->
         <minio.version>8.5.17</minio.version>
@@ -51,6 +65,12 @@
         <maven-compiler-plugin.version>3.14.1</maven-compiler-plugin.version>
         <!-- Maven 3.9.6 默认绑定 surefire 2.12.4，跑不了 JUnit 5（测试会被静默跳过），必须显式钉版本 -->
         <maven-surefire-plugin.version>3.6.0</maven-surefire-plugin.version>
+
+        <!-- 分布式锁：Redisson 4.7.0（适配 Spring Boot 4 / Spring Framework 7）。
+             不用 redisson-spring-boot-starter：它会自动替换 LettuceConnectionFactory 成 RedissonConnectionFactory，
+             和本仓库现有的 @Cacheable 缓存装配冲突。这里只引原生 redisson jar，手动配 RedissonClient Bean，
+             现有 Lettuce 缓存保持不变，RedissonClient 独立用作分布式锁/并发集合。 -->
+        <redisson.version>4.7.0</redisson.version>
     </properties>
 
     <modules>
@@ -93,12 +113,6 @@
             <dependency>
                 <groupId>org.tiglor</groupId>
                 <artifactId>vidora-common-core</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <!-- 用户/角色/菜单（RBAC）实体与 Mapper：auth 与 system 共用 user_service 库 -->
-            <dependency>
-                <groupId>org.tiglor</groupId>
-                <artifactId>vidora-common-user</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <!-- Redis 缓存与序列化配置：需要 @Cacheable 的服务引入 -->
@@ -166,11 +180,24 @@
                 <artifactId>mybatis-spring</artifactId>
                 <version>${mybatis-spring.version}</version>
             </dependency>
-            <!-- MySQL 驱动 -->
+            <!-- MySQL 驱动。
+                 排除 protobuf-java：connector/J 9.0.0 会传递带进 4.26.1，按「最近者优先」盖掉
+                 Dubbo 3.3.6 需要的 3.25.8，而 com.google.protobuf.GeneratedMessageV3 在 protobuf 4.x
+                 已被删除，结果是 system-service 一启动就 NoClassDefFoundError（Dubbo 的
+                 RestSpringScopeModelInitializer 在 FrameworkModel 构造期就会走到那个类）。
+                 protobuf 只服务于 connector/J 的 X DevAPI（mysqlx 协议），本仓库全部走
+                 jdbc:mysql:// 经典协议，用不到它。写在这里而不是各服务 pom，是为了让所有
+                 声明该驱动的模块一次性生效——漏一个就是一次只在运行期暴露的启动失败。 -->
             <dependency>
                 <groupId>com.mysql</groupId>
                 <artifactId>mysql-connector-j</artifactId>
                 <version>${mysql.version}</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>com.google.protobuf</groupId>
+                        <artifactId>protobuf-java</artifactId>
+                    </exclusion>
+                </exclusions>
             </dependency>
 
             <!-- 接口文档 SpringDoc OpenAPI（Boot 4） -->
@@ -178,6 +205,19 @@
                 <groupId>org.springdoc</groupId>
                 <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
                 <version>${springdoc.version}</version>
+            </dependency>
+            <!-- Javadoc → OpenAPI 的运行期读取库：引了 springdoc 的服务都要带上它，provider 才会启用 -->
+            <dependency>
+                <groupId>com.github.therapi</groupId>
+                <artifactId>therapi-runtime-javadoc</artifactId>
+                <version>${therapi.version}</version>
+            </dependency>
+            <!-- 编译期注解处理器。版本在这里托管，实际引用在下方 annotationProcessorPaths -->
+            <dependency>
+                <groupId>com.github.therapi</groupId>
+                <artifactId>therapi-runtime-javadoc-scribe</artifactId>
+                <version>${therapi.version}</version>
+                <scope>provided</scope>
             </dependency>
 
             <!-- 对象存储 MinIO（视频上传/下载/存储） -->
@@ -193,11 +233,27 @@
                 <artifactId>rocketmq-client</artifactId>
                 <version>${rocketmq.client.version}</version>
             </dependency>
+
+            <!-- 分布式锁：Redisson 原生 jar。手动装配 RedissonClient，和 Lettuce 缓存并存。 -->
+            <dependency>
+                <groupId>org.redisson</groupId>
+                <artifactId>redisson</artifactId>
+                <version>${redisson.version}</version>
+            </dependency>
             <!-- Sentinel 流量防护 -->
             <dependency>
                 <groupId>com.alibaba.cloud</groupId>
                 <artifactId>spring-cloud-starter-alibaba-sentinel</artifactId>
                 <version>${spring-cloud-alibaba.version}</version>
+            </dependency>
+
+            <!-- Dubbo：starter 会带出 all-in-one 的 dubbo 主 jar（内含 dubbo-registry-nacos、dubbo-rpc-triple 等），
+                 所以只需要这一个坐标。注册中心用 Nacos 时，nacos-client 的版本由下面钉住的 3.2.4 接管，
+                 不用 dubbo 自己传递进来的那个。 -->
+            <dependency>
+                <groupId>org.apache.dubbo</groupId>
+                <artifactId>dubbo-spring-boot-starter</artifactId>
+                <version>${dubbo.version}</version>
             </dependency>
 
             <!-- Nacos 3.2.4 全家桶：覆盖 SCA 2025.1.0.0 默认的 3.1.1。
@@ -249,6 +305,14 @@
                                 <artifactId>lombok</artifactId>
                                 <version>${lombok.version}</version>
                             </path>
+                            <!-- 把 Javadoc 注释烘进 target/classes/<包路径>/<类名>__Javadoc.json，
+                                 供 springdoc 的 Javadoc provider 运行期读取：接口说明只写注释、不贴注解。
+                                 列了 paths 之后 JDK 不再从 classpath 自动发现处理器，新处理器必须加在这里 -->
+                            <path>
+                                <groupId>com.github.therapi</groupId>
+                                <artifactId>therapi-runtime-javadoc-scribe</artifactId>
+                                <version>${therapi.version}</version>
+                            </path>
                         </annotationProcessorPaths>
                     </configuration>
                 </plugin>
@@ -261,6 +325,10 @@
                     <groupId>org.springframework.boot</groupId>
                     <artifactId>spring-boot-maven-plugin</artifactId>
                     <version>${spring-boot.version}</version>
+                    <!-- run 默认 cwd 是模块目录，会把相对路径的 LOG_HOME 带进各模块；归一到仓库根，日志统一在 <repo>/logs/<服务名>/ -->
+                    <configuration>
+                        <workingDirectory>${maven.multiModuleProjectDirectory}</workingDirectory>
+                    </configuration>
                 </plugin>
             </plugins>
         </pluginManagement>

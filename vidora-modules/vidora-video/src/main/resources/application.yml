@@ -5,10 +5,10 @@ spring:
   application:
     name: video-service
 
-  # Datasource
+  # Datasource：单库 vidora_cloud。库不隔离了，本服务只管 video_* 那节表；用户昵称等跨域数据走服务间调用
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://127.0.0.1:3306/video_service?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+    url: jdbc:mysql://127.0.0.1:3306/vidora_cloud?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
     username: ${SPRING_DATASOURCE_USERNAME:root}
     password: ${SPRING_DATASOURCE_PASSWORD:123456}
   servlet:
@@ -25,7 +25,7 @@ spring:
       database: 0
 
   cloud:
-    # Nacos：当前只用服务注册与发现，配置中心暂缓（重新启用步骤见 docs/ARCHITECTURE.md 6.2）
+    # Nacos：当前只用服务注册与发现，配置中心暂缓（重新启用步骤见 .code/ARCHITECTURE.md 6.2）
     nacos:
       discovery:
         server-addr: 127.0.0.1:8848
@@ -125,6 +125,8 @@ rocketmq:
 
 # SpringDoc OpenAPI
 springdoc:
+  # 接口说明取自 controller/service 上的 Javadoc（therapi 编译期烘进 target/classes，处理器见根 pom），不是 Swagger 注解
+  enable-javadoc: true
   api-docs:
     enabled: true
     path: /v3/api-docs

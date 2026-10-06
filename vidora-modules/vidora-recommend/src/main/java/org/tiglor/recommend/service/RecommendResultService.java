@@ -10,7 +10,7 @@ import java.util.List;
 /**
  * 推荐候选的存取与曝光/点击回写。
  * <p>
- * 这个服务**不产出推荐**：算法在外部训练和运行，通过 {@link #batchUpsert} 把结果写进来。
+ * 这个服务「不产出推荐」：算法在外部训练和运行，通过 {@link #batchUpsert} 把结果写进来。
  * 本服务负责的是「按用户取一屏」「记住哪些已经给这个人看过」「回收点击信号」。
  * </p>
  */
@@ -20,7 +20,7 @@ public interface RecommendResultService extends IService<RecommendResult> {
     int MAX_FEED_SIZE = 50;
 
     /**
-     * 取一屏推荐并**同时**标记为已曝光。
+     * 取一屏推荐并「同时」标记为已曝光。
      * <p>
      * 读取和标记必须是一个动作：拆成两个接口的话，客户端漏调标记就会反复拿到同一屏，
      * {@code is_exposed} 也就永远统计不出真实曝光量。

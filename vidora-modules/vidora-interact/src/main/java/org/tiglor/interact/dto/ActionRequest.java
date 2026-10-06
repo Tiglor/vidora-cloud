@@ -13,6 +13,10 @@ public class ActionRequest {
     @NotBlank(message = "targetType 不能为空")
     private String targetType;
 
+    /**
+     * 被互动对象的 ID，与 {@link #targetType} 一起决定作用在哪条视频/哪条评论上。
+     * <p>只校验是正数，不校验对象是否真的存在——跨服务校验会给这条高频写路径加一次远程调用。</p>
+     */
     @NotNull(message = "targetId 不能为空")
     @Positive(message = "targetId 必须为正数")
     private Long targetId;

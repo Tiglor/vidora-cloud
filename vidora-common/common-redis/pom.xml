@@ -34,5 +34,10 @@
             <groupId>com.fasterxml.jackson.datatype</groupId>
             <artifactId>jackson-datatype-jsr310</artifactId>
         </dependency>
+        <!-- 分布式锁/并发集合：原生 jar，手动配 RedissonClient，和 Lettuce 缓存并存不冲突 -->
+        <dependency>
+            <groupId>org.redisson</groupId>
+            <artifactId>redisson</artifactId>
+        </dependency>
     </dependencies>
 </project>

@@ -12,7 +12,7 @@ public interface SecurityAuditMapper extends BaseMapper<SecurityAudit> {
     /**
      * 写入或覆盖一条机审结果，按 {@code uk_target(target_type, target_id)} 定位。
      * <p>
-     * 命中已有行时把 {@code manual_result} 重置为 NULL：人工当初放行的是**那一版**评分，
+     * 命中已有行时把 {@code manual_result} 重置为 NULL：人工当初放行的是「那一版」评分，
      * 机审复跑之后分数变了，旧结论不该继续生效——否则一条被重新判定为高风险的内容
      * 会因为几周前的一次人工放行而一直畅通。
      * </p>

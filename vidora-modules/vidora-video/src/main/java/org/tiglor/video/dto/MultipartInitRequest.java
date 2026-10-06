@@ -24,6 +24,10 @@ public class MultipartInitRequest {
     /** S3 单次 compose 最多 10000 个源分片；配合 5 MiB 下限，单文件上限约 50 GiB */
     public static final int MAX_CHUNKS = 10_000;
 
+    /**
+     * 原始文件名，只用作标题兜底和对象名后缀，不参与路径解析。
+     * <p>超过 200 字符服务端截断；后缀必须是纯字母数字才保留，否则拼出来的对象名不带扩展名。</p>
+     */
     @NotBlank(message = "文件名不能为空")
     @Size(max = 200, message = "文件名过长")
     private String fileName;
@@ -33,6 +37,7 @@ public class MultipartInitRequest {
     @Pattern(regexp = "^[A-Fa-f0-9]{32,64}$", message = "文件哈希必须是 32 位 MD5 或 64 位 SHA-256 十六进制串")
     private String fileHash;
 
+    /** 整文件字节数，必须与实际切片后的总和对得上，否则最后一片会因大小不符被拒收 */
     @NotNull(message = "文件大小不能为空")
     @Positive(message = "文件大小必须大于 0")
     private Long fileSize;

@@ -42,7 +42,7 @@
 | `AUDIT` | 8 | 内容审核：过审 / 驳回 |
 | `CHANGE_STATUS` | 9 | 上下架、状态流转 |
 
-DDL 里的 `business_type` 列注释（`SQL/09_sys_log.sql`）就是这串数字的第二处出处，**两处必须一致**；真要扩新值属于改公共契约，先问用户。
+DDL 里的 `business_type` 列注释（`SQL/vidora_cloud.sql` 第二节审计日志）就是这串数字的第二处出处，**与 Java 枚举必须一致**；真要扩新值属于改公共契约，先问用户。
 
 ### 2. 加注解
 
@@ -135,7 +135,7 @@ curl -s -H "Authorization: Bearer $ADMIN_TOKEN" "http://127.0.0.1:8080/api/oper-
 4. **入参含凭据却忘了 `saveParam=false`**。脱敏只认 `password/passwd/secret/token` 四个词根，`apiKey`、`credential`、`otpCode` 不在内。
 5. **同类内部自调用**导致切面不生效（和 `@Cacheable` 同一个坑）。注解打在 Controller 方法上最稳 —— 现有 29 处全在 controller。
 6. **以为上报失败就没记录**。`RemoteLogSink` 先落文件后上报，`audit.log` 是唯一那条一定成功的路（合规要的是「发生过什么」）。反过来，看到 audit.log 有、库里没有，说明是上报链路问题（服务没起 / Nacos 没解析 / 表未建 / 口令不符），不是切面问题。
-7. **想给审计表加删除或清空接口**。**设计上的禁区**：`OperLogController` 只有 page 与 detail 两个 GET，`SQL/09` 头部注释写明「能被随手清空的审计表等于没有审计表，『谁删了视频』和『谁删了那条记录』必须是两件事」，保留期靠归档/运维解决。有人提这个需求要先挡回去并交给用户。
+7. **想给审计表加删除或清空接口**。**设计上的禁区**：`OperLogController` 只有 page 与 detail 两个 GET，`SQL/vidora_cloud.sql` 第二节审计日志的头部注释写明「能被随手清空的审计表等于没有审计表，『谁删了视频』和『谁删了那条记录』必须是两件事」，保留期靠归档/运维解决。有人提这个需求要先挡回去并交给用户。
 8. **列表接口去查两个大字段**。`oper_param` / `json_result` 各 VARCHAR(2000)，列表刻意不查（`OperLogController.detail` 的注释：「列表为了不把几千字的请求参数整页拖过来，故意不查大字段」）。优化查询时别把它「补全」。
 9. **昵称冗余进表**。`sys_oper_log` 只存 `oper_user_id`，昵称由查询侧在同库批量补（`OperLogVO extends OperLogEntity` + 其类注释解释了改名后冗余值会永远停在旧名字）。
 10. **审计逻辑里抛异常**。任何取现场数据的代码都要包在旁路 try/catch 内，绝不能让审计把业务打成 500。

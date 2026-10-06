@@ -21,10 +21,12 @@ public class NotifyRequest {
     @NotNull(message = "msgType 不能为空")
     private Integer msgType;
 
+    /** 这条通知投给谁；发送者恒为系统（sender_id=0），调用方指定不了 */
     @NotNull(message = "receiverId 不能为空")
     @Positive(message = "receiverId 非法")
     private Long receiverId;
 
+    /** 通知正文，入库前会去掉首尾空白，因此只填空格过不了非空校验 */
     @NotBlank(message = "消息内容不能为空")
     @Size(max = 2000, message = "消息内容不能超过 2000 字")
     private String content;

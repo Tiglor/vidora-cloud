@@ -60,7 +60,7 @@ public interface SearchSuggestService extends IService<SearchSuggest> {
      * 从某一天的搜索统计里挖词，把还没被收录的热词批量加成建议词（{@code source = 2}）。
      * <p>
      * 这是 {@code search_suggest.source} 里「自动挖掘」那一档的写入方。
-     * 挖掘是**运营触发**的动作而不是定时任务：挖出来的词没人审过就可能直接进联想框，
+     * 挖掘是「运营触发」的动作而不是定时任务：挖出来的词没人审过就可能直接进联想框，
      * 得有人看过 {@code minCount} 和结果再决定要不要放出去。
      * </p>
      *

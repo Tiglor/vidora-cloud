@@ -37,26 +37,35 @@ $env:JAVA_HOME = 'D:\Java\otherJDK\bellsoft-jdk25.0.4.1+1-windows-amd64\jdk-25.0
 
 ## 二、初始化数据库
 
-`SQL/` 下 7 个脚本各自 `CREATE DATABASE`，对应 **7 个独立库**（不是同一个库下的多 schema）：
+`SQL/` 下只有一个文件 `vidora_cloud.sql`：建 **一个业务库 `vidora_cloud`**，内部按业务功能分 8 节（用户与权限 / 审计日志 / 视频与转码 / 内容运营 / 互动 / 站内消息 / 搜索 / 推荐），33 张表 + 全部种子数据。
 
-| 脚本 | 数据库 | 使用方 |
-|------|--------|--------|
-| `01_user_service.sql` | `user_service` | auth-service、system-service（共用 RBAC） |
-| `02_video_service.sql` | `video_service` | video-service |
-| `03_content_service.sql` | `content_service` | content-service |
-| `04_interact_service.sql` | `interact_service` | interact-service |
-| `05_message_service.sql` | `message_service` | message-service |
-| `06_search_service.sql` | `search_service` | search-service |
-| `07_recommend_service.sql` | `recommend_service` | recommend-service |
+| 使用方 | 管的表（`vidora_cloud` 库内的节） |
+|--------|--------|
+| system-service | `sys_*` / `user_*`（第 1 节）+ 第 2 节两张 `sys_*_log`；auth-service **不连库**，经 Dubbo 向它取 |
+| video-service | `video_*`（第 3 节） |
+| content-service | `content_*`（第 4 节） |
+| interact-service | `interact_*`（第 5 节） |
+| message-service | `message_*`（第 6 节） |
+| search-service | `search_*`（第 7 节） |
+| recommend-service | `recommend_*`（第 8 节） |
 
-compose 已把 `../SQL` 挂到 MySQL 的 `/docker-entrypoint-initdb.d`，**首次启动（数据卷为空时）会按 01→07 顺序自动执行**。
+除 gateway 与 auth 外的 7 个服务连的是**同一个库**：库级隔离没有了，边界靠表名前缀守（一个服务的 Mapper 只碰自己那一节），跨域取数据走 `vidora-api` / Dubbo。
 
-若需要手动重跑（例如数据卷已存在、脚本被改动）：
+compose 已把 `../SQL` 挂到 MySQL 的 `/docker-entrypoint-initdb.d`，**只在首次启动（数据卷为空时）自动执行**。注意脚本是普通 DDL（建库建表不带 `IF NOT EXISTS`），所以它只在空库上跑得通：已有 `vidora_cloud` 库时重跑会直接报错停下（`ERROR 1007/1050`），这是刻意的 —— 静默跳过会让人以为结构改动生效了，其实库一个字没变。
+
+要重建库（改了 `vidora_cloud.sql` 之后）：
 
 ```bash
-docker exec -i vidora-mysql mysql -uroot -p"$MYSQL_ROOT_PASSWORD" < SQL/01_user_service.sql
-# ...其余脚本同理
+# 方式一：删卷重建（会连数据一起没，动手前确认没有要留的）
+docker compose -f deploy/docker-compose.yml --env-file deploy/.env down -v
+docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d
+
+# 方式二：只重建业务库，保留卷
+docker exec -i vidora-mysql mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -e 'DROP DATABASE IF EXISTS vidora_cloud;'
+docker exec -i vidora-mysql mysql -uroot -p"$MYSQL_ROOT_PASSWORD" < SQL/vidora_cloud.sql
 ```
+
+不方便重建的，手工执行本次变更等价的 `ALTER`（交付说明里会给出）。
 
 ## 三、构建镜像并启动
 
@@ -89,7 +98,7 @@ docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
 | `ROCKETMQ_NAME_SERVER` | 消息队列 NameServer 地址 |
 
 > Nacos 当前**只用于服务注册与发现**，没有接配置中心：每个服务的配置都在自己那一个 `application.yml` 里。
-> Nacos 未就绪时服务仍能启动，只是注册不上、网关找不到下游（重新启用配置中心的步骤见 `docs/ARCHITECTURE.md` 6.2）。
+> Nacos 未就绪时服务仍能启动，只是注册不上、网关找不到下游（重新启用配置中心的步骤见 `.code/ARCHITECTURE.md` 6.2）。
 >
 > 各服务 `application.yml` 里的凭据与地址都写成 `${环境变量:开发默认值}` 形式
 > （`jwt.secret`、数据库/Redis 口令、MinIO AK/SK、`rocketmq.*`），
@@ -106,7 +115,7 @@ docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
     - /usr/bin/ffmpeg:/usr/bin/ffmpeg:ro
     - /usr/bin/ffprobe:/usr/bin/ffprobe:ro
   ```
-- 更彻底的做法是把转码抽成独立转码集群 / 改用云 MPS，video-service 仅提交任务 + 轮询结果（见 `docs/ARCHITECTURE.md` 第 8 节）。
+- 更彻底的做法是把转码抽成独立转码集群 / 改用云 MPS，video-service 仅提交任务 + 轮询结果（见 `.code/ARCHITECTURE.md` 第 8 节）。
 - `transcode.enabled=false` 时可关闭上传自动转码（仅存源文件，`play-url` 返回源文件地址）。
 
 ## 六、前端 Web 端

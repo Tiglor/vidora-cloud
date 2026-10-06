@@ -38,7 +38,9 @@ public class SearchHistoryController {
     private final SearchHistoryService service;
 
     /**
-     * 回报一次搜索，同时写我的历史和当天的全站词频。
+     * 记录一次搜索
+     *
+     * <p>回报一次搜索，同时写我的历史和当天的全站词频</p>
      * <p>
      * 检索本身还没落地（ES 是独立的待完成项），所以先由调用方在拿到结果之后回报。
      * 等 ES 接上，这一步会挪进检索接口内部，对外的上报入口就撤掉。
@@ -51,7 +53,11 @@ public class SearchHistoryController {
         return ApiResult.ok();
     }
 
-    /** 我的历史，按最后搜索时间倒序 */
+    /**
+     * 查询我的搜索历史
+     *
+     * <p>按最后搜索时间倒序</p>
+     */
     @GetMapping("/history")
     public ApiResult<Page<SearchHistory>> history(@RequestParam(defaultValue = "1") long current,
                                                  @RequestParam(defaultValue = "20") long size) {
@@ -59,7 +65,9 @@ public class SearchHistoryController {
     }
 
     /**
-     * 删掉我的一条历史。
+     * 删除我的一条搜索历史
+     *
+     * <p>删掉我的一条历史</p>
      *
      * @return false 表示这一行不是我的、或者已经删掉了，不报 404——前端只是想让这个标签消失
      */
@@ -69,7 +77,9 @@ public class SearchHistoryController {
     }
 
     /**
-     * 清空我的全部历史。
+     * 清空我的搜索历史
+     *
+     * <p>清空我的全部历史</p>
      *
      * @return 删除行数
      */

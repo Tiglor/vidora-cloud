@@ -14,7 +14,7 @@ spring:
       database: 0
 
   cloud:
-    # Nacos：当前只用服务注册与发现，配置中心暂缓（重新启用步骤见 docs/ARCHITECTURE.md 6.2）
+    # Nacos：当前只用服务注册与发现，配置中心暂缓（重新启用步骤见 .code/ARCHITECTURE.md 6.2）
     nacos:
       discovery:
         server-addr: 127.0.0.1:8848

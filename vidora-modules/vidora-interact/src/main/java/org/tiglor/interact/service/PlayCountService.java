@@ -11,7 +11,7 @@ import org.tiglor.interact.dto.VideoTotals;
  * </p>
  * <p>
  * 代价是总数要 SUM，所以读路径挂了 60s 缓存；计数本来就是准实时的，播放数晚一分钟无人在意。
- * video_info 上的冗余计数字段需要由跨服务事件回写，见 docs/ARCHITECTURE.md 的互动服务一节。
+ * video_info 上的冗余计数字段需要由跨服务事件回写，见 .code/ARCHITECTURE.md 的互动服务一节。
  * </p>
  */
 public interface PlayCountService {

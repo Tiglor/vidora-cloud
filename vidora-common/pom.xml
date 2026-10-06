@@ -16,7 +16,6 @@
 
     <modules>
         <module>common-core</module>
-        <module>common-user</module>
         <module>common-redis</module>
         <module>common-log</module>
         <module>common-test</module>
