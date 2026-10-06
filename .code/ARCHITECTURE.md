@@ -178,11 +178,26 @@ org.tiglor.{module}.{service}/
   Dubbo 3.3.6 的 `ConfigCenterConfig` / `MetadataReportConfig` 只有 `check` 字段、**没有 `enabled`**，
   这两种写法会被配置绑定静默忽略，看起来禁用了其实没有——这个坑在 `vidora-auth/src/main/resources/application.yml`
   的注释里也留了一份。
+- **Dubbo 的注册中心必须和 Spring Cloud 分 namespace**（`dubbo.registry.address` 带 `?namespace=dubbo`）。
+  两边都用 `public` 的话，`system-service` 这个名字下会同时挂着 HTTP 的 8108 和 Dubbo 的 20880，
+  网关负载均衡有一半概率打到 20880——Netty 的 HTTP 解码器读不懂 Dubbo 协议的响应，抛
+  `IllegalArgumentException: invalid version format: UNSUPPORTED`，对外一律表现成 500「服务异常」，
+  且**间歇性**（打到 8108 的那半是好的），很容易被误判成业务代码 bug。
+  容器部署尤其要小心：compose 里的 `DUBBO_REGISTRY_ADDRESS` 会**整体覆盖** yml 里带 namespace 的默认值，
+  只改一处等于没改。健康状态是 `public` 里每个服务只有 HTTP 端口、`dubbo` namespace 里只有 20880。
+- **provider 侧还要写 `dubbo.application.register-mode: interface`。** 默认值 `all` 会额外做一次 app-level
+  （instance）注册，而它依赖元数据中心存「接口名 → 应用名」映射；元数据中心上一条已经刻意关掉了，
+  于是每导出一个接口就打一条 `ERROR ... Failed register interface application mapping ... error code: 5-10`，
+  文案还写着「This may be caused by configuration server disconnected」，极易被当成注册中心故障去排查。
+  消费方订阅的是 interface 级的 `providers:...` 节点、不依赖那条映射，所以改成 `interface`
+  只是消掉一个自相矛盾的注册动作，调用链不受影响。
 - **重新启用配置中心的步骤**：
   1. 9 个 pom 加回 `spring-cloud-starter-alibaba-nacos-config`；
   2. 每个 `application.yml` 加回 `spring.cloud.nacos.config.server-addr` 与 `file-extension: yml`；
   3. 加回 `spring.config.import: - optional:nacos:${spring.application.name}.yml`
-     （`optional:` 前缀保证 Nacos 未就绪时仍能启动，仅告警）；
+     （`optional:` 前缀保证 Nacos 未就绪时仍能启动，仅告警。**这只豁免配置读取**——服务发现是另一套开关：
+     `spring.cloud.nacos.discovery.fail-fast` 默认 `true`，注册不上会直接中断启动，
+     别把「配置可选」推广成「Nacos 没起也能起来」）；
   4. dataId 约定为 `<服务名>.yml`，放 public 命名空间；生产可改 `spring.cloud.nacos.config.namespace` 指定命名空间；
   5. 若还要让 **Dubbo** 也从配置中心读，把 auth / system 两个服务 `dubbo.registry` 下的
      `use-as-config-center` / `use-as-metadata-center` 翻回 `true`——它们目前是刻意关掉的（见上一条），

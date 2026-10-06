@@ -35,6 +35,14 @@ dubbo:
     name: system-service
     # QoS 是 Dubbo 自带的运维端口（默认 22222），本仓库没有用它，关掉少一个监听口
     qos-enable: false
+    # 只做 interface 级注册。默认值 all 还会额外做一次 app-level（instance）注册，而那条路依赖
+    # 元数据中心存「接口名 → 应用名」映射——下面 use-as-metadata-center 是刻意关掉的，
+    # 于是每导出一个接口就打一条 ERROR「Failed register interface application mapping ...
+    # error code: 5-10. This may be caused by configuration server disconnected」，
+    # 看着像注册中心断了，实际是配置自相矛盾。消费方订阅的是 interface 级的 providers:... 节点，
+    # 不依赖这条映射，所以关掉 instance 注册不影响调用，只是让启动日志回到干净状态。
+    # 将来若有第二个 provider 服务，同样要加这一行。
+    register-mode: interface
   registry:
     # 和上面的 spring.cloud.nacos.discovery 共用同一个 Nacos 服务器，但用 namespace=dubbo
     # 隔离注册中心 —— 不然 Spring Cloud Gateway 的 Service Discovery 会把 Dubbo 协议端口（20880）

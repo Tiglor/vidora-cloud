@@ -87,6 +87,7 @@ docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
 | 变量 | 作用 |
 |------|------|
 | `SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR` | Nacos 注册中心地址（当前只用服务发现，未接配置中心） |
+| `DUBBO_REGISTRY_ADDRESS` | Dubbo 注册中心（仅 auth-service / system-service）。**必须带 `?namespace=dubbo`**：这个变量整体覆盖 `application.yml` 里已带 namespace 的默认值，漏了就会把 Dubbo 的 20880 注册进 `public`，与 Spring Cloud 的 HTTP 实例同名，网关负载均衡打到 20880 的请求全部 500 |
 | `SPRING_DATASOURCE_URL` | 各服务自己的库（见上表），主机名 `mysql` |
 | `SPRING_DATASOURCE_USERNAME` / `PASSWORD` | MySQL 账号 |
 | `SPRING_DATA_REDIS_HOST` / `PORT` / `PASSWORD` | Redis 连接（主机名 `redis`） |
@@ -98,7 +99,14 @@ docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
 | `ROCKETMQ_NAME_SERVER` | 消息队列 NameServer 地址 |
 
 > Nacos 当前**只用于服务注册与发现**，没有接配置中心：每个服务的配置都在自己那一个 `application.yml` 里。
-> Nacos 未就绪时服务仍能启动，只是注册不上、网关找不到下游（重新启用配置中心的步骤见 `.code/ARCHITECTURE.md` 6.2）。
+> Nacos 未就绪时服务**启动即失败**，不是「先起来、注册不上」：`spring.cloud.nacos.discovery.fail-fast`
+> 默认 `true`，注册失败会中断启动（`Failed to start bean 'webServerStartStop'`）。
+> 排查时注意 Nacos 2.x 除 8848 外还要通 **9848 / 9849**（gRPC）——这两个端口是客户端按
+> 「主端口 +1000 / +1001」自己算出来的，服务端不会告知，所以「服务跑宿主机、Nacos 跑容器」时
+> 必须在 compose 里一并发布，且宿主机端口号要与容器内一致。只通 8848 的表现很有迷惑性：
+> `/nacos/v1/console/health/readiness` 照样返回 `OK`，服务却在注册时报
+> `ErrCode:-401, ErrMsg:Client not connected, current status:STARTING`。
+> 重新启用配置中心的步骤见 `.code/ARCHITECTURE.md` 6.2。
 >
 > 各服务 `application.yml` 里的凭据与地址都写成 `${环境变量:开发默认值}` 形式
 > （`jwt.secret`、数据库/Redis 口令、MinIO AK/SK、`rocketmq.*`），

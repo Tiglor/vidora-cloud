@@ -98,7 +98,9 @@ git diff --stat        # 期望：新增行数 ≈ 真实改动量；整文件�
 
 调试业务接口通常需要：MySQL + Redis + Nacos + gateway + auth-service + 目标服务。三种起法由用户选（IDEA 运行各 `{X}ServiceApplication`、`mvn spring-boot:run`、或 `docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d`，见 `deploy/docker-compose.yml` 头部步骤）。
 
-依赖没起时的表现要知道，别误判成 bug：**Nacos 未就绪时服务仍能启动，只是注册不上、网关找不到下游**（compose 注释原文）→ 症状是 503/连接失败而不是 404。
+依赖没起时的表现要知道，别误判成 bug：**Nacos 未就绪时服务启动即失败**，不是「起来了但注册不上」——`spring.cloud.nacos.discovery.fail-fast` 默认 `true`，注册失败会中断启动（`Failed to start bean 'webServerStartStop'`）。Nacos 2.x 还要求 9848 / 9849 可达（gRPC，客户端按「主端口 +1000 / +1001」自己算，服务端不告知），只通 8848 时 `readiness` 接口仍返回 `OK`，服务却报 `ErrCode:-401, Client not connected, current status:STARTING`——这一条最有迷惑性，健康检查看不出来。
+
+另一类别误判成业务 bug 的 500：网关日志里出现 `IllegalArgumentException: invalid version format: UNSUPPORTED`（抛在 Netty `HttpResponseDecoder.createMessage`）＝ 负载均衡把 HTTP 请求发到了 **Dubbo 的 20880 端口**，说明 Dubbo 实例和 Spring Cloud 实例注册进了同一个 Nacos namespace。查 `dubbo.registry.address` 有没有带 `namespace=dubbo`；注意 compose 里的 `DUBBO_REGISTRY_ADDRESS` 会**整体覆盖** yml 默认值，很容易只改了一处。正常的隔离状态是：`public` 里每个服务只有 HTTP 端口，`dubbo` namespace 里只有 20880。
 
 ### 3.2 拿 token
 

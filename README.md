@@ -165,7 +165,10 @@ $env:JAVA_HOME = 'D:\Java\otherJDK\bellsoft-jdk25.0.4.1+1-windows-amd64\jdk-25.0
 ```
 
 Nacos 当前**只做服务注册与发现**，没有接配置中心：每个服务的配置都在自己那一个 `src/main/resources/application.yml` 里。
-本地没起 Nacos 各服务仍能启动（注册失败只告警），但网关的 `lb://xxx-service` 解析不到实例、请求会 503。
+本地没起 Nacos 时服务**启动即失败**（`spring.cloud.nacos.discovery.fail-fast` 默认 `true`，注册失败会中断启动），
+不是「起来了但网关解析不到实例、请求 503」。Nacos 2.x 还要求 9848 / 9849 可达——gRPC 端口是客户端按
+「主端口 +1000 / +1001」自己算的，服务端不告知；只通 8848 时 `readiness` 接口照样返回 `OK`，
+服务却在注册时报 `Client not connected, current status:STARTING`。
 配置中心的重新启用步骤见 `.code/ARCHITECTURE.md` 6.2。
 
 ### 3. 前端对接
