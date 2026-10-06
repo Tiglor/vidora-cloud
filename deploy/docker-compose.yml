@@ -198,7 +198,11 @@ services:
       <<: *app-env
       JWT_SECRET: ${JWT_SECRET}
       # 本服务不连库：用户与客户端数据经 Dubbo 向 system-service 取，所以没有 SPRING_DATASOURCE_URL
-      DUBBO_REGISTRY_ADDRESS: "nacos://nacos:8848"
+      # ?namespace=dubbo 不能省。这个环境变量整体覆盖 application.yml 里已带 namespace 的默认值，
+      # 漏了它 Dubbo 就把 system-service 的 20880 注册进 public，和 Spring Cloud 注册的 8108
+      # 挤在同一个服务名下，网关负载均衡有一半概率打到 20880 —— Netty 的 HTTP 解码器读不懂
+      # Dubbo 协议的响应，抛 invalid version format 后网关一律回 500「服务异常」。
+      DUBBO_REGISTRY_ADDRESS: "nacos://nacos:8848?namespace=dubbo"
     depends_on: *app-depends
     volumes:
       - app-logs:/app/logs
@@ -220,7 +224,8 @@ services:
       <<: *app-env
       # 单库 vidora_cloud：RBAC、用户与两张审计表都归本服务写；auth-service 要用户数据走 Dubbo，不直连库
       SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/vidora_cloud?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false"
-      DUBBO_REGISTRY_ADDRESS: "nacos://nacos:8848"
+      # 本服务是 provider，注册进去的正是 20880，漏 namespace 就是直接污染 public（原因见 auth-service 处）
+      DUBBO_REGISTRY_ADDRESS: "nacos://nacos:8848?namespace=dubbo"
     depends_on: *app-depends
     volumes:
       - app-logs:/app/logs
