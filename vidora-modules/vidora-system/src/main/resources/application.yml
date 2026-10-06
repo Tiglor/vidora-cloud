@@ -36,9 +36,12 @@ dubbo:
     # QoS 是 Dubbo 自带的运维端口（默认 22222），本仓库没有用它，关掉少一个监听口
     qos-enable: false
   registry:
-    # 和上面的 spring.cloud.nacos.discovery 是同一个 Nacos，但走 Dubbo 自己的注册路径：
-    # Nacos 里会多出 providers:org.tiglor.api.system.RemoteUserApi:: 这类接口级条目，不是重复注册
-    address: ${DUBBO_REGISTRY_ADDRESS:nacos://127.0.0.1:8848}
+    # 和上面的 spring.cloud.nacos.discovery 共用同一个 Nacos 服务器，但用 namespace=dubbo
+    # 隔离注册中心 —— 不然 Spring Cloud Gateway 的 Service Discovery 会把 Dubbo 协议端口（20880）
+    # 当成 HTTP 实例一起做负载均衡，打到 Dubbo 端口的 HTTP 请求全部 500。
+    # Gateway 看到的只应该是 Spring Cloud 注册的 HTTP 端口（8108），Dubbo provider/consumer
+    # 的互相发现走独立 namespace，互不干扰。
+    address: ${DUBBO_REGISTRY_ADDRESS:nacos://127.0.0.1:8848?namespace=dubbo}
     # 本项目不用 Nacos 做配置管理（配置全写死在 application.yml 里），也不发布元数据中心。
     # 开关只能写在 registry 上——dubbo.config-center.enabled / dubbo.metadata-report.enabled
     # 是无效属性（Dubbo 3.3.6 的这两个 config 类没有 enabled 字段，绑定时被静默忽略），

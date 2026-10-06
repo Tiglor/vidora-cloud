@@ -1,4 +1,4 @@
-﻿server:
+server:
   port: 8101
 
 spring:
@@ -29,7 +29,9 @@ dubbo:
     # QoS 是 Dubbo 自带的运维端口（默认 22222），本仓库没有用它，关掉少一个监听口
     qos-enable: false
   registry:
-    address: ${DUBBO_REGISTRY_ADDRESS:nacos://127.0.0.1:8848}
+    # 与 system-service 保持一致：Dubbo 注册/发现走 dubbo namespace，
+    # 避免 Spring Cloud Gateway 误把 Dubbo 协议端口当成 HTTP 实例做负载均衡
+    address: ${DUBBO_REGISTRY_ADDRESS:nacos://127.0.0.1:8848?namespace=dubbo}
     # 别把这两行改回 dubbo.config-center.enabled / dubbo.metadata-report.enabled：
     # Dubbo 3.3.6 的 ConfigCenterConfig / MetadataReportConfig 根本没有 enabled 字段，
     # 写上去会被配置绑定静默忽略，看起来禁用了其实没有。真正的开关在 RegistryConfig 上。
